@@ -1,0 +1,19 @@
+[project]
+name = "temporalio-samples"
+version = "0.1a1"
+description = "Temporal.io Python SDK samples"
+license = {text = "MIT"}
+authors = [{name = "Temporal Technologies Inc", email = "sdk@temporal.io"}]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "temporalio>=1.20.0",
+    "psutil>=6.1.0",
+    "prometheus-client>=0.21.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/temporalio/samples-python"
+Repository = "https://github.com/temporalio/samples-python"
+Documentation = "https://docs.temporal.io/docs/python"
+"Bug Tracker" = "https://github.com/temporalio/samples-python/issues"
