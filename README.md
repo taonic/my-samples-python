@@ -38,6 +38,46 @@ new workflow.
 
 See [visibility_query_dedup/README.md](visibility_query_dedup/README.md) for details.
 
+### Query with Arguments
+Demonstrates a query handler that takes input parameters: signals build up group
+membership state and callers query for the members of a specific group.
+
+See [query_with_args/README.md](query_with_args/README.md) for details.
+
+### Signals
+Covers signal-with-start, client signals, and workflow-to-workflow signals via an
+external workflow handle, driving a group workflow that fills up or times out.
+
+See [signal_workflow/README.md](signal_workflow/README.md) for details.
+
+### Workflow Sleep (Durable Timers)
+A reminder loop that waits between attempts with `workflow.sleep`, contrasted
+with a timed `wait_condition` that wakes early when an acknowledgement signal
+arrives.
+
+See [workflow_sleep/README.md](workflow_sleep/README.md) for details.
+
+### DescribeWorker (Worker Heartbeat)
+Uses the raw `ListWorkers` / `DescribeWorker` gRPC APIs to discover a running
+worker and fetch its live details (identity, host, slot usage, cache stats),
+relying on worker heartbeat.
+
+See [describe_worker/README.md](describe_worker/README.md) for details.
+
+### Workflow Versioning and Replay
+A minimal workflow (one activity) plus a replayer that checks new workflow code
+against existing histories. Includes a walkthrough of breaking determinism and
+then fixing it with `workflow.patched`.
+
+See [workflow_versioning/README.md](workflow_versioning/README.md) for details.
+
+### Error Handling
+A hello-world greeting activity that fails on purpose, showing retryable vs
+non-retryable `ApplicationError`, retry policies, unwrapping `err.cause` in the
+workflow and at the client, and choosing between failing and degrading.
+
+See [error_handling/README.md](error_handling/README.md) for details.
+
 ## Resources
 
 - [Temporal Documentation](https://docs.temporal.io/docs/python)
