@@ -6,19 +6,19 @@ from temporalio.client import Client, WorkflowFailureError
 
 from .activities import GreetInput
 from .worker import TASK_QUEUE
-from .workflow import GreetingWorkflow
+from .workflow import ErrorHandlingWorkflow
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-WORKFLOW_ID = "greeting-workflow"
+WORKFLOW_ID = "error-handling-workflow"
 
 
 async def main():
     client = await Client.connect("localhost:7233")
     try:
         result = await client.execute_workflow(
-            GreetingWorkflow.run,
+            ErrorHandlingWorkflow.run,
             GreetInput(name="Tao"),
             id=f"{WORKFLOW_ID}-{uuid.uuid4()}",
             task_queue=TASK_QUEUE,

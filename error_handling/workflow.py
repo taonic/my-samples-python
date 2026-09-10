@@ -9,14 +9,17 @@ with workflow.unsafe.imports_passed_through():
 
 
 @workflow.defn
-class GreetingWorkflow:
+class ErrorHandlingWorkflow:
     """Hello world, plus the three decisions error handling actually involves.
 
     Optionally catch `ActivityError` to handle failures from activities, e.g. except ActivityError as err:
+    Optionally 
     """
 
     @workflow.run
     async def run(self, params: GreetInput) -> str:
+        x = None
+        print(x.upper())
         return await workflow.execute_activity(
             greet,
             params,

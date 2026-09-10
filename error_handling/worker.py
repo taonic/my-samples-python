@@ -5,7 +5,7 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from .activities import greet
-from .workflow import GreetingWorkflow
+from .workflow import ErrorHandlingWorkflow
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ async def main():
     worker = Worker(
         client,
         task_queue=TASK_QUEUE,
-        workflows=[GreetingWorkflow],
+        workflows=[ErrorHandlingWorkflow],
         activities=[greet],
     )
     log.info("Worker started on task queue %s", TASK_QUEUE)

@@ -10,7 +10,7 @@ activity, through the retry policy, into the workflow, and out to the client.
   ways: an empty name raises a **non-retryable** `ApplicationError`, while a
   `fail_attempts` budget simulates a **transient** fault by raising a plain
   `RuntimeError` on early attempts.
-- [workflow.py](workflow.py) — `GreetingWorkflow` sets a retry policy, catches
+- [workflow.py](workflow.py) — `ErrorHandlingWorkflow` sets a retry policy, catches
   `ActivityError`, inspects `err.cause`, and then either fails the workflow or
   degrades to a fallback greeting depending on what went wrong.
 - [worker.py](worker.py) — runs both on the `error-handling` task queue.
