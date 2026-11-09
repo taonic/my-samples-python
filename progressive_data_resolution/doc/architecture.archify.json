@@ -1,0 +1,305 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Progressive Data Resolution on Temporal",
+    "output": "progressive_data_resolution/doc/architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "customer",
+      "type": "external",
+      "label": "Customer",
+      "sublabel": "browser",
+      "pos": [
+        40,
+        60
+      ],
+      "size": [
+        120,
+        64
+      ]
+    },
+    {
+      "id": "web-ui",
+      "type": "frontend",
+      "label": "Web UI",
+      "sublabel": "form, debug panel, scenario player",
+      "pos": [
+        300,
+        60
+      ],
+      "size": [
+        200,
+        64
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "API",
+      "sublabel": "FastAPI, stateless",
+      "pos": [
+        690,
+        60
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "temporal",
+      "type": "cloud",
+      "label": "Temporal Service",
+      "sublabel": "event history, task queue",
+      "pos": [
+        685,
+        250
+      ],
+      "size": [
+        170,
+        64
+      ],
+      "tag": "durable state"
+    },
+    {
+      "id": "loop",
+      "type": "backend",
+      "label": "Reconciliation loop",
+      "sublabel": "inbox → apply event → revision++",
+      "pos": [
+        660,
+        440
+      ],
+      "size": [
+        220,
+        76
+      ],
+      "tag": "one serialized loop"
+    },
+    {
+      "id": "resolver",
+      "type": "backend",
+      "label": "① Requirement resolver",
+      "sublabel": "applicable? ready? satisfied?",
+      "pos": [
+        980,
+        560
+      ],
+      "size": [
+        180,
+        70
+      ],
+      "tag": "pure"
+    },
+    {
+      "id": "planner",
+      "type": "backend",
+      "label": "② Action planner",
+      "sublabel": "collect:field, activity:fingerprint",
+      "pos": [
+        660,
+        700
+      ],
+      "size": [
+        220,
+        70
+      ],
+      "tag": "pure"
+    },
+    {
+      "id": "activities",
+      "type": "external",
+      "label": "③ Activities",
+      "sublabel": "checks, pricing, payout, load_schema",
+      "pos": [
+        330,
+        560
+      ],
+      "size": [
+        215,
+        70
+      ],
+      "tag": "allowlisted"
+    },
+    {
+      "id": "schemas",
+      "type": "database",
+      "label": "Form schemas",
+      "sublabel": "5 forms linked by next",
+      "pos": [
+        40,
+        563
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "next-form",
+      "type": "backend",
+      "label": "Next form run",
+      "sublabel": "continue-as-new, same ID",
+      "pos": [
+        980,
+        780
+      ],
+      "size": [
+        180,
+        76
+      ],
+      "tag": "select_next"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "API process",
+      "wraps": [
+        "api"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Worker process: task queue progressive-data-resolution",
+      "wraps": [
+        "loop",
+        "resolver",
+        "planner",
+        "activities",
+        "schemas",
+        "next-form"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "customer-answers",
+      "from": "customer",
+      "to": "web-ui",
+      "label": "answers questions",
+      "variant": "emphasis"
+    },
+    {
+      "id": "ui-calls-api",
+      "from": "web-ui",
+      "to": "api",
+      "label": "REST, polls while running",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-to-temporal",
+      "from": "api",
+      "to": "temporal",
+      "label": "submit Update, get_state Query",
+      "variant": "emphasis"
+    },
+    {
+      "id": "temporal-to-loop",
+      "from": "temporal",
+      "to": "loop",
+      "label": "workflow + activity tasks",
+      "variant": "emphasis"
+    },
+    {
+      "id": "loop-resolves",
+      "from": "loop",
+      "to": "resolver",
+      "label": "① resolve",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "resolver-plans",
+      "from": "resolver",
+      "to": "planner",
+      "label": "② plan",
+      "fromSide": "left",
+      "toSide": "top"
+    },
+    {
+      "id": "planner-starts",
+      "from": "planner",
+      "to": "activities",
+      "label": "③ start new actions",
+      "fromSide": "left",
+      "toSide": "bottom"
+    },
+    {
+      "id": "result-to-inbox",
+      "from": "activities",
+      "to": "loop",
+      "label": "④ result → inbox",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "load-schema",
+      "from": "activities",
+      "to": "schemas",
+      "label": "load_schema"
+    },
+    {
+      "id": "complete-select-next",
+      "from": "resolver",
+      "to": "next-form",
+      "label": "complete → select_next",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "continue-as-new",
+      "from": "next-form",
+      "to": "temporal",
+      "label": "continue-as-new, context carried",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "right",
+      "labelSegment": 2
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Progressive cycle",
+      "items": [
+        "① Resolve: requiredWhen decides applicability (unknown → blocked); dependsOn and readyWhen decide readiness; a result counts only if its input fingerprint matches",
+        "② Plan: collect:<field> for each missing human field (rendered as the form); <activity>:<fingerprint> once per input set",
+        "③ Execute: people answer through Updates while independent activities run concurrently",
+        "④ Every answer, result and retry enters the inbox; one loop applies it, bumps the revision and repeats until every applicable requirement is satisfied"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Branching follow-up forms",
+      "items": [
+        "On completion, the first next entry whose when holds (outcome and data) is chosen",
+        "Continue-as-new keeps the workflow ID and starts a fresh history; final values become read-only context (application.*, offer.*)",
+        "loan_application → loan_offer → disbursement or offer_feedback; unaffordable only → affordability_review"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Stale-safe results",
+      "items": [
+        "Action id = activity:input-fingerprint, so re-planning never duplicates work",
+        "Results are keyed by fingerprint; only the current inputs' result satisfies a requirement",
+        "Corrections retire non-applicable values to an audit list"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Submissions and durability",
+      "items": [
+        "Update validator rejects bad shapes; the loop re-checks per-field conflicts (422 / 409)",
+        "Submission id is the Update ID, plus in-state dedupe",
+        "Schema pinned in history; worker restarts replay without rerunning completed checks",
+        "Activities are scheduled through Temporal; drawn direct for clarity"
+      ]
+    }
+  ]
+}

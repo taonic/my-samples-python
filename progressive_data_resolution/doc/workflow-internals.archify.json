@@ -1,0 +1,361 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "ProgressiveDataResolutionWorkflow Internals",
+    "output": "progressive_data_resolution/doc/workflow-internals.html",
+    "quality_profile": "showcase",
+    "legend": {
+      "entries": {
+        "frontend": {
+          "label": "Query"
+        },
+        "backend": {
+          "label": "Workflow code"
+        },
+        "security": {
+          "label": "Update validators"
+        },
+        "messagebus": {
+          "label": "Event inbox"
+        },
+        "cloud": {
+          "label": "Temporal command"
+        },
+        "external": {
+          "label": "Outside the workflow loop"
+        }
+      }
+    }
+  },
+  "lanes": [
+    {
+      "id": "ends",
+      "label": "Run ends · client"
+    },
+    {
+      "id": "handlers",
+      "label": "Update and Query handlers"
+    },
+    {
+      "id": "loop",
+      "label": "run() → _run_form(): main loop"
+    },
+    {
+      "id": "reconcile",
+      "label": "_reconcile(trigger)"
+    },
+    {
+      "id": "tasks",
+      "label": "Activity tasks"
+    }
+  ],
+  "groups": [
+    {
+      "id": "pure",
+      "label": "Pure core calls",
+      "lane": "reconcile",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "dashed"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "api",
+      "lane": "ends",
+      "col": 4,
+      "type": "external",
+      "label": "API / UI",
+      "sublabel": "workflow handle calls",
+      "width": 152
+    },
+    {
+      "id": "continue",
+      "lane": "ends",
+      "col": 0,
+      "type": "cloud",
+      "label": "continue_as_new",
+      "sublabel": "values → context, same ID",
+      "width": 152
+    },
+    {
+      "id": "selnext",
+      "lane": "ends",
+      "col": 1,
+      "type": "backend",
+      "label": "select_next",
+      "sublabel": "first next whose when holds",
+      "width": 152
+    },
+    {
+      "id": "outcome",
+      "lane": "ends",
+      "col": 2,
+      "type": "backend",
+      "label": "return _outcome()",
+      "sublabel": "ResolutionOutcome",
+      "width": 152
+    },
+    {
+      "id": "request",
+      "lane": "handlers",
+      "col": 2,
+      "type": "backend",
+      "label": "_request(event)",
+      "sublabel": "seq++, append, await reply",
+      "width": 152
+    },
+    {
+      "id": "updates",
+      "lane": "handlers",
+      "col": 4,
+      "type": "security",
+      "label": "submit · retry_action",
+      "sublabel": "validators reject early",
+      "tag": "@workflow.update",
+      "width": 168
+    },
+    {
+      "id": "query",
+      "lane": "handlers",
+      "col": 5,
+      "type": "frontend",
+      "label": "get_state",
+      "sublabel": "ResolutionState snapshot",
+      "tag": "@workflow.query",
+      "width": 168
+    },
+    {
+      "id": "start",
+      "lane": "loop",
+      "col": 0,
+      "type": "backend",
+      "label": "run() start",
+      "sublabel": "_load_schema, check_context",
+      "width": 152
+    },
+    {
+      "id": "check",
+      "lane": "loop",
+      "col": 1,
+      "type": "backend",
+      "label": "complete?",
+      "sublabel": "_run_form: while not complete",
+      "width": 168
+    },
+    {
+      "id": "inbox",
+      "lane": "loop",
+      "col": 2,
+      "type": "messagebus",
+      "label": "_inbox + wait_condition",
+      "sublabel": "event or inactivity timeout",
+      "width": 168
+    },
+    {
+      "id": "apply",
+      "lane": "loop",
+      "col": 3,
+      "type": "backend",
+      "label": "_apply(event)",
+      "sublabel": "writes _data, _results, _replies",
+      "width": 168
+    },
+    {
+      "id": "startact",
+      "lane": "reconcile",
+      "col": 1,
+      "type": "backend",
+      "label": "_start_activity",
+      "sublabel": "pending → running, attempts++",
+      "width": 168
+    },
+    {
+      "id": "plan",
+      "lane": "reconcile",
+      "col": 2,
+      "type": "backend",
+      "label": "plan_actions",
+      "sublabel": "collect:field, activity:fp",
+      "tag": "pure",
+      "width": 152
+    },
+    {
+      "id": "resolve",
+      "lane": "reconcile",
+      "col": 3,
+      "type": "backend",
+      "label": "resolve_requirements",
+      "sublabel": "retire → _retained",
+      "tag": "pure",
+      "width": 168
+    },
+    {
+      "id": "runact",
+      "lane": "tasks",
+      "col": 1,
+      "type": "external",
+      "label": "_run_activity task",
+      "sublabel": "execute_activity, retry ×3",
+      "width": 168
+    }
+  ],
+  "edges": [
+    {
+      "id": "api-update",
+      "from": "api",
+      "to": "updates",
+      "label": "Update"
+    },
+    {
+      "id": "api-query",
+      "from": "api",
+      "to": "query",
+      "label": "Query",
+      "variant": "dashed"
+    },
+    {
+      "id": "update-request",
+      "from": "updates",
+      "to": "request",
+      "label": "accepted"
+    },
+    {
+      "id": "request-inbox",
+      "from": "request",
+      "to": "inbox",
+      "label": "submission / retry event",
+      "variant": "emphasis"
+    },
+    {
+      "id": "start-check",
+      "from": "start",
+      "to": "check",
+      "label": "first _reconcile",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "check-wait",
+      "from": "check",
+      "to": "inbox",
+      "label": "no",
+      "variant": "emphasis"
+    },
+    {
+      "id": "inbox-apply",
+      "from": "inbox",
+      "to": "apply",
+      "label": "popleft()",
+      "variant": "emphasis"
+    },
+    {
+      "id": "apply-resolve",
+      "from": "apply",
+      "to": "resolve",
+      "label": "trigger",
+      "variant": "emphasis"
+    },
+    {
+      "id": "resolve-plan",
+      "from": "resolve",
+      "to": "plan",
+      "label": "resolution",
+      "variant": "emphasis"
+    },
+    {
+      "id": "plan-start",
+      "from": "plan",
+      "to": "startact",
+      "label": "pending",
+      "variant": "emphasis"
+    },
+    {
+      "id": "start-check-back",
+      "from": "startact",
+      "to": "check",
+      "label": "re-resolve, explain",
+      "variant": "emphasis",
+      "role": "return",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "start-task",
+      "from": "startact",
+      "to": "runact",
+      "label": "create_task"
+    },
+    {
+      "id": "task-result",
+      "from": "runact",
+      "to": "inbox",
+      "label": "_ActivityDone / _ActivityFailed",
+      "variant": "dashed",
+      "role": "async"
+    },
+    {
+      "id": "check-next",
+      "from": "check",
+      "to": "selnext",
+      "label": "yes",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "next-continue",
+      "from": "selnext",
+      "to": "continue",
+      "label": "match",
+      "role": "branch"
+    },
+    {
+      "id": "next-outcome",
+      "from": "selnext",
+      "to": "outcome",
+      "label": "none",
+      "role": "branch"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "One writer",
+      "items": [
+        "Handlers and activity tasks only append to _inbox; _run_form is the only place state changes",
+        "_request waits for _replies[seq], so an Update returns after the loop has applied it and re-reconciled",
+        "_apply re-runs check_submission: another Update may have landed since the validator ran"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "_reconcile(trigger)",
+      "items": [
+        "resolve_requirements over _data, _results, _actions and context",
+        "Retire values of fields that stopped applying into _retained",
+        "plan_actions, then _start_activity for every pending activity action",
+        "Re-resolve, store _resolution, append explain() to _decisions (last 50)"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Activity results",
+      "items": [
+        "Activity id is action id + attempt; the result is posted to the inbox, not applied in the task",
+        "_apply stores it under _results[field][fingerprint]; stale if the current fingerprint differs",
+        "Failure after retries marks the action failed; retry_action sets it back to pending"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "How a run ends",
+      "items": [
+        "_run_form closes the form: inactivity timeout → cancelled; complete → select_next",
+        "run() then drains late requests (in a finally) with ApplicationClosed",
+        "Waits for all_handlers_finished, then continue_as_new (with _next_input) or returns _outcome()"
+      ]
+    }
+  ]
+}

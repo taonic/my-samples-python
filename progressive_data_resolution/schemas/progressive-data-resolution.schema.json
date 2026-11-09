@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/temporalio/samples-python/progressive_data_resolution/schemas/progressive-data-resolution.schema.json",
+  "title": "Progressive Data Resolution schema",
+  "description": "Declares the data a process needs, when each field applies, and how it is collected. Validated structurally here for editor support; core/schema.py is authoritative and additionally checks that rule and dependsOn references name real fields, that the reference graph is acyclic, that the last outcome entry is unconditional, that context paths start with a declared namespace, and (at load time) that next forms exist and declare the namespace they receive.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "version", "fields", "outcome"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Editor hint only; ignored by the loader."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z_]+$",
+      "description": "Schema id. Files are loaded as <id>.v<version>.json."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+$",
+      "description": "Immutable version. A running workflow stays pinned to the version it started with."
+    },
+    "title": {
+      "type": "string",
+      "description": "Heading shown on the generated form."
+    },
+    "context": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/fieldId" },
+      "description": "Read-only namespaces of data carried over from an earlier form. Rules read '<namespace>.<field>[.<key>]', and number bounds can use {\"from\": path}. Names must differ from every field id."
+    },
+    "fields": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "Requirements, in display order.",
+      "propertyNames": { "$ref": "#/$defs/fieldId" },
+      "additionalProperties": { "$ref": "#/$defs/field" }
+    },
+    "outcome": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered verdict rules evaluated once complete; the first match wins. The last entry must have no 'when'.",
+      "items": { "$ref": "#/$defs/outcomeRule" }
+    },
+    "next": {
+      "type": "array",
+      "description": "Follow-up forms. On completion the first entry whose 'when' holds is continued into (continue-as-new), receiving this form's final values under 'as'.",
+      "items": { "$ref": "#/$defs/nextEntry" }
+    }
+  },
+  "$defs": {
+    "fieldId": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "fieldPath": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*){0,2}$",
+      "description": "A field id, 'field.key' to read one key of an activity result, or '<context namespace>.field[.key]'."
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "collection"],
+      "properties": {
+        "type": {
+          "enum": ["string", "number", "boolean", "object"],
+          "description": "'object' is reserved for activity results."
+        },
+        "label": { "type": "string", "description": "Shown on the form and in the debug panel." },
+        "required": {
+          "const": true,
+          "description": "Always applicable. Use requiredWhen instead for conditional fields."
+        },
+        "requiredWhen": {
+          "$ref": "#/$defs/rule",
+          "description": "Applicable only while this rule holds. Unknown means the field is blocked."
+        },
+        "dependsOn": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/fieldPath" },
+          "description": "Activity fields: inputs that must be satisfied or not applicable before the activity runs: field ids, or context paths such as 'application.annual_income'. Their applicable values form the input fingerprint and are passed to the activity under these names."
+        },
+        "readyWhen": {
+          "$ref": "#/$defs/rule",
+          "description": "Activity fields: an extra gate. False makes the requirement impossible until the data changes."
+        },
+        "collection": { "$ref": "#/$defs/collection" },
+        "enum": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string" },
+          "description": "String fields: allowed values, rendered as a dropdown."
+        },
+        "min": { "$ref": "#/$defs/bound", "description": "Number fields: inclusive minimum." },
+        "max": { "$ref": "#/$defs/bound", "description": "Number fields: inclusive maximum." },
+        "minLength": { "type": "integer", "minimum": 0 },
+        "maxLength": { "type": "integer", "minimum": 0 },
+        "pattern": {
+          "type": "string",
+          "format": "regex",
+          "description": "String fields: must match the whole value (re.fullmatch)."
+        }
+      },
+      "oneOf": [
+        { "required": ["required"], "not": { "required": ["requiredWhen"] } },
+        { "required": ["requiredWhen"], "not": { "required": ["required"] } }
+      ],
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "not": { "const": "string" } } } },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "required": ["enum"] },
+                { "required": ["minLength"] },
+                { "required": ["maxLength"] },
+                { "required": ["pattern"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "not": { "const": "number" } } } },
+          "then": { "not": { "anyOf": [{ "required": ["min"] }, { "required": ["max"] }] } }
+        },
+        {
+          "if": { "properties": { "collection": { "properties": { "strategy": { "const": "human" } } } } },
+          "then": {
+            "properties": { "type": { "not": { "const": "object" } } },
+            "not": { "anyOf": [{ "required": ["dependsOn"] }, { "required": ["readyWhen"] }] }
+          }
+        },
+        {
+          "if": { "properties": { "collection": { "properties": { "strategy": { "const": "activity" } } } } },
+          "then": { "properties": { "type": { "const": "object" } } }
+        }
+      ]
+    },
+    "collection": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["strategy"],
+          "properties": { "strategy": { "const": "human" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["strategy", "activity"],
+          "properties": {
+            "strategy": { "const": "activity" },
+            "activity": {
+              "enum": [
+                "verify_identity",
+                "assess_affordability",
+                "fetch_credit_score",
+                "prepare_offer",
+                "assess_household_affordability",
+                "schedule_disbursement"
+              ],
+              "description": "Must be registered in activities.AUTOMATED_ACTIVITIES."
+            }
+          }
+        }
+      ]
+    },
+    "rule": {
+      "oneOf": [
+        { "$ref": "#/$defs/leafRule" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["and"],
+          "properties": { "and": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/rule" } } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["or"],
+          "properties": { "or": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/rule" } } }
+        }
+      ]
+    },
+    "leafRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field"],
+      "minProperties": 2,
+      "maxProperties": 2,
+      "properties": {
+        "field": { "$ref": "#/$defs/fieldPath" },
+        "equals": { "description": "True when the field's value equals this. Unknown while the field is unsettled." },
+        "notEquals": { "description": "True when the value differs, or the field is not applicable." },
+        "exists": { "type": "boolean", "description": "Whether a value is present right now. Never unknown." }
+      }
+    },
+    "bound": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from"],
+          "properties": { "from": { "$ref": "#/$defs/fieldPath" } },
+          "description": "Read the bound from a declared context namespace, e.g. 'application.affordability_assessment.max_loan'."
+        }
+      ]
+    },
+    "nextEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "version", "as"],
+      "properties": {
+        "when": {
+          "$ref": "#/$defs/rule",
+          "description": "May also read 'outcome', this form's derived outcome."
+        },
+        "schema": { "type": "string", "pattern": "^[a-z_]+$" },
+        "version": { "type": "string", "pattern": "^[0-9]+$" },
+        "as": {
+          "$ref": "#/$defs/fieldId",
+          "description": "Context namespace the next form must declare."
+        }
+      }
+    },
+    "outcomeRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result"],
+      "properties": {
+        "when": { "$ref": "#/$defs/rule" },
+        "result": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

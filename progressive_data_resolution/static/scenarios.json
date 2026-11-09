@@ -1,0 +1,139 @@
+{
+  "scenarios": [
+    {
+      "id": "employed-accepted",
+      "title": "Employed: offer accepted, payout scheduled",
+      "description": "The main path. The loan amount is templated to the applicant's affordability cap.",
+      "expect": "loan_application:approved > loan_offer:accepted > disbursement:scheduled",
+      "steps": [
+        {"form": "loan_application", "values": {"applicant_name": "Ada Lovelace", "consent_to_checks": true, "employment_type": "employed", "annual_income": 60000, "employer_name": "Analytical Engines Ltd"}},
+        {"form": "loan_application", "values": {"final_confirmation": true}},
+        {"form": "loan_offer", "values": {"loan_amount": "{{application.affordability_assessment.max_loan}}", "term_months": "36", "repayment_account": "12345678", "hr_contact_email": "hr@engines.example"}},
+        {"form": "loan_offer", "values": {"accept_offer": true}},
+        {"form": "disbursement", "values": {"pay_to_repayment_account": true, "salary_day": 25}}
+      ]
+    },
+    {
+      "id": "self-employed-accepted",
+      "title": "Self-employed: offer accepted, paid to another account",
+      "description": "Self-employed questions in every form: business details, accountant contact, business purpose.",
+      "expect": "loan_application:approved > loan_offer:accepted > disbursement:scheduled",
+      "steps": [
+        {"form": "loan_application", "values": {"applicant_name": "Grace Hopper", "consent_to_checks": true, "employment_type": "self_employed", "annual_income": 90000, "business_registration": "BR-123456", "business_operating_years": 4}},
+        {"form": "loan_application", "values": {"final_confirmation": true}},
+        {"form": "loan_offer", "values": {"loan_amount": 100000, "term_months": "60", "repayment_account": "23456789", "accountant_contact_email": "books@hopper.example"}},
+        {"form": "loan_offer", "values": {"accept_offer": true}},
+        {"form": "disbursement", "values": {"pay_to_repayment_account": false, "payout_account": "87654321", "business_purpose": "equipment"}}
+      ]
+    },
+    {
+      "id": "offer-declined",
+      "title": "Offer declined: feedback asks about the rate",
+      "description": "Declining the offer branches to feedback; the reason decides the follow-up question.",
+      "expect": "loan_application:approved > loan_offer:offer_declined > offer_feedback:follow_up_requested",
+      "steps": [
+        {"form": "loan_application", "values": {"applicant_name": "Katherine Johnson", "consent_to_checks": true, "employment_type": "employed", "annual_income": 75000, "employer_name": "NASA"}},
+        {"form": "loan_application", "values": {"final_confirmation": true}},
+        {"form": "loan_offer", "values": {"loan_amount": 20000, "term_months": "60", "repayment_account": "34567890", "hr_contact_email": "hr@nasa.example"}},
+        {"form": "loan_offer", "values": {"accept_offer": false}},
+        {"form": "offer_feedback", "values": {"decline_reason": "rate_too_high", "preferred_term": "12", "contact_ok": true}}
+      ]
+    },
+    {
+      "id": "review-referred",
+      "title": "Unaffordable: household review with a co-applicant",
+      "description": "Declined only on affordability, so it branches to a review. 20,000 + 5,000 + 20,000 household income is enough.",
+      "expect": "loan_application:declined > affordability_review:referred_to_underwriter",
+      "steps": [
+        {"form": "loan_application", "values": {"applicant_name": "Charles Dickens", "consent_to_checks": true, "employment_type": "employed", "annual_income": 20000, "employer_name": "Household Words"}},
+        {"form": "loan_application", "values": {"final_confirmation": true}},
+        {"form": "affordability_review", "values": {"other_income": 5000, "has_co_applicant": true, "co_applicant_name": "Catherine Hogarth", "co_applicant_income": 20000}}
+      ]
+    },
+    {
+      "id": "review-still-unaffordable",
+      "title": "Unaffordable self-employed: review not enough",
+      "description": "The review asks the self-employed for their latest accounts; 30,000 household income stays below 40,000.",
+      "expect": "loan_application:declined > affordability_review:still_unaffordable",
+      "steps": [
+        {"form": "loan_application", "values": {"applicant_name": "Mary Shelley", "consent_to_checks": true, "employment_type": "self_employed", "annual_income": 30000, "business_registration": "BR-181818", "business_operating_years": 3}},
+        {"form": "loan_application", "values": {"final_confirmation": true}},
+        {"form": "affordability_review", "values": {"other_income": 0, "has_co_applicant": false, "business_accounts_year": "2025"}}
+      ]
+    },
+    {
+      "id": "stale-correction",
+      "title": "Correction while affordability is running (stale result)",
+      "description": "Starts self-employed with 1 year (unaffordable), then switches to employed before the check returns. The stale result is ignored.",
+      "expect": "loan_application:approved > loan_offer:accepted > disbursement:scheduled",
+      "steps": [
+        {"form": "loan_application", "values": {"applicant_name": "Alan Turing", "consent_to_checks": true, "employment_type": "self_employed", "annual_income": 90000, "business_registration": "BR-654321", "business_operating_years": 1}},
+        {"form": "loan_application", "values": {"employment_type": "employed", "employer_name": "Bletchley Park"}},
+        {"form": "loan_application", "values": {"final_confirmation": true}},
+        {"form": "loan_offer", "values": {"loan_amount": 50000, "term_months": "24", "repayment_account": "45678901", "hr_contact_email": "hr@bletchley.example"}},
+        {"form": "loan_offer", "values": {"accept_offer": true}},
+        {"form": "disbursement", "values": {"pay_to_repayment_account": true, "salary_day": 1}}
+      ]
+    },
+    {
+      "id": "consent-corrected",
+      "title": "Consent refused, then corrected",
+      "description": "Refusing consent makes progress impossible; the scenario pauses so you can see it, then corrects it. Stops at the offer.",
+      "expect": "loan_application:approved > loan_offer:(waiting_for_human)",
+      "steps": [
+        {"form": "loan_application", "values": {"applicant_name": "Ada Lovelace", "consent_to_checks": false, "employment_type": "employed", "annual_income": 60000, "employer_name": "Analytical Engines Ltd"}},
+        {"form": "loan_application", "pauseMs": 4000, "values": {"consent_to_checks": true}},
+        {"form": "loan_application", "values": {"final_confirmation": true}}
+      ]
+    },
+    {
+      "id": "flaky-identity",
+      "title": "Flaky identity provider: succeeds on retry",
+      "description": "Identity fails twice and succeeds on Temporal's third attempt. Stops at the offer.",
+      "expect": "loan_application:approved > loan_offer:(waiting_for_human)",
+      "steps": [
+        {"form": "loan_application", "values": {"applicant_name": "Flaky Fiona", "consent_to_checks": true, "employment_type": "employed", "annual_income": 60000, "employer_name": "Acme"}},
+        {"form": "loan_application", "values": {"final_confirmation": true}}
+      ]
+    },
+    {
+      "id": "broken-identity",
+      "title": "Broken identity provider: retries exhausted",
+      "description": "Identity fails all three attempts. The action shows failed with a Retry button in the debug panel.",
+      "expect": "loan_application:(action_failed)",
+      "steps": [
+        {"form": "loan_application", "values": {"applicant_name": "Broken Bob", "consent_to_checks": true, "employment_type": "employed", "annual_income": 60000, "employer_name": "Acme"}}
+      ]
+    },
+    {
+      "id": "identity-fraud",
+      "title": "Identity check fails: declined, nothing follows",
+      "description": "A name containing 'fraud' fails identity. Declined for identity has no follow-up form.",
+      "expect": "loan_application:declined",
+      "steps": [
+        {"form": "loan_application", "values": {"applicant_name": "Frank Fraudster", "consent_to_checks": true, "employment_type": "employed", "annual_income": 60000, "employer_name": "Acme"}},
+        {"form": "loan_application", "values": {"final_confirmation": true}}
+      ]
+    },
+    {
+      "id": "poor-credit",
+      "title": "Poor credit: declined, nothing follows",
+      "description": "A name containing 'risky' gets a poor credit band. Affordable, but declined with no review.",
+      "expect": "loan_application:declined",
+      "steps": [
+        {"form": "loan_application", "values": {"applicant_name": "Risky Rita", "consent_to_checks": true, "employment_type": "employed", "annual_income": 60000, "employer_name": "Acme"}},
+        {"form": "loan_application", "values": {"final_confirmation": true}}
+      ]
+    },
+    {
+      "id": "withdrawn",
+      "title": "Withdrawn at the final confirmation",
+      "description": "Answering No to the final confirmation withdraws the application.",
+      "expect": "loan_application:withdrawn",
+      "steps": [
+        {"form": "loan_application", "values": {"applicant_name": "Ada Lovelace", "consent_to_checks": true, "employment_type": "employed", "annual_income": 60000, "employer_name": "Analytical Engines Ltd"}},
+        {"form": "loan_application", "values": {"final_confirmation": false}}
+      ]
+    }
+  ]
+}

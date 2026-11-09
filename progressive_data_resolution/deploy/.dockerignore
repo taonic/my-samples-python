@@ -1,0 +1,9 @@
+# The build context is the repo root (see Dockerfile). Only the sample and the lock go in.
+*
+!pyproject.toml
+!uv.lock
+!progressive_data_resolution
+progressive_data_resolution/**/__pycache__
+progressive_data_resolution/tests
+progressive_data_resolution/doc
+**/.DS_Store

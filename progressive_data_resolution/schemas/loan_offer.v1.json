@@ -1,0 +1,76 @@
+{
+  "$schema": "./progressive-data-resolution.schema.json",
+  "id": "loan_offer",
+  "version": "1",
+  "title": "Loan offer",
+  "context": ["application"],
+  "fields": {
+    "loan_amount": {
+      "type": "number",
+      "label": "Loan amount",
+      "required": true,
+      "min": 1000,
+      "max": {"from": "application.affordability_assessment.max_loan"},
+      "collection": {"strategy": "human"}
+    },
+    "term_months": {
+      "type": "string",
+      "label": "Term (months)",
+      "required": true,
+      "enum": ["12", "24", "36", "60"],
+      "collection": {"strategy": "human"}
+    },
+    "repayment_account": {
+      "type": "string",
+      "label": "Repayment account number (8 digits)",
+      "required": true,
+      "pattern": "[0-9]{8}",
+      "collection": {"strategy": "human"}
+    },
+    "hr_contact_email": {
+      "type": "string",
+      "label": "HR contact email, to confirm employment",
+      "requiredWhen": {"field": "application.employment_type", "equals": "employed"},
+      "pattern": "[^@ ]+@[^@ ]+[.][^@ ]+",
+      "collection": {"strategy": "human"}
+    },
+    "accountant_contact_email": {
+      "type": "string",
+      "label": "Accountant email, to confirm business income",
+      "requiredWhen": {"field": "application.employment_type", "equals": "self_employed"},
+      "pattern": "[^@ ]+@[^@ ]+[.][^@ ]+",
+      "collection": {"strategy": "human"}
+    },
+    "offer": {
+      "type": "object",
+      "label": "Loan offer",
+      "required": true,
+      "dependsOn": ["loan_amount", "term_months"],
+      "collection": {"strategy": "activity", "activity": "prepare_offer"}
+    },
+    "accept_offer": {
+      "type": "boolean",
+      "label": "I accept this offer",
+      "requiredWhen": {"field": "offer", "exists": true},
+      "collection": {"strategy": "human"}
+    }
+  },
+  "outcome": [
+    {"when": {"field": "accept_offer", "equals": false}, "result": "offer_declined"},
+    {"result": "accepted"}
+  ],
+  "next": [
+    {
+      "when": {"field": "outcome", "equals": "accepted"},
+      "schema": "disbursement",
+      "version": "1",
+      "as": "offer"
+    },
+    {
+      "when": {"field": "outcome", "equals": "offer_declined"},
+      "schema": "offer_feedback",
+      "version": "1",
+      "as": "offer"
+    }
+  ]
+}

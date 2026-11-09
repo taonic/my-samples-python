@@ -1,0 +1,36 @@
+# The sample's page and API, and the Temporal UI under /temporal, all proxied to a
+# Daytona sandbox that runs them (see runner.py). Deploy from the repo root, the build
+# context:
+#
+#   fly deploy . --config progressive_data_resolution/deploy/fly.toml \
+#     --dockerfile progressive_data_resolution/deploy/Dockerfile \
+#     --ignorefile progressive_data_resolution/deploy/.dockerignore --ha=false
+#
+# One machine: two could each create a sandbox. Secrets and the first deploy: README.md.
+
+app = "progressive-data-resolution"
+primary_region = "sjc"
+
+[env]
+  HOST = "0.0.0.0"
+  PORT = "8080"
+  SANDBOX_AUTO_STOP_MINUTES = "30"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

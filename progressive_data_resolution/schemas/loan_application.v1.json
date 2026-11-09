@@ -1,0 +1,121 @@
+{
+  "$schema": "./progressive-data-resolution.schema.json",
+  "id": "loan_application",
+  "version": "1",
+  "title": "Loan application",
+  "fields": {
+    "applicant_name": {
+      "type": "string",
+      "label": "Full name",
+      "required": true,
+      "minLength": 2,
+      "maxLength": 100,
+      "collection": {"strategy": "human"}
+    },
+    "consent_to_checks": {
+      "type": "boolean",
+      "label": "I consent to identity, affordability and credit checks",
+      "required": true,
+      "collection": {"strategy": "human"}
+    },
+    "employment_type": {
+      "type": "string",
+      "label": "Employment type",
+      "required": true,
+      "enum": ["employed", "self_employed"],
+      "collection": {"strategy": "human"}
+    },
+    "annual_income": {
+      "type": "number",
+      "label": "Annual income",
+      "required": true,
+      "min": 0,
+      "collection": {"strategy": "human"}
+    },
+    "employer_name": {
+      "type": "string",
+      "label": "Employer name",
+      "requiredWhen": {"field": "employment_type", "equals": "employed"},
+      "minLength": 2,
+      "collection": {"strategy": "human"}
+    },
+    "business_registration": {
+      "type": "string",
+      "label": "Business registration number (BR-123456)",
+      "requiredWhen": {"field": "employment_type", "equals": "self_employed"},
+      "pattern": "BR-[0-9]{6}",
+      "collection": {"strategy": "human"}
+    },
+    "business_operating_years": {
+      "type": "number",
+      "label": "Years the business has been operating",
+      "requiredWhen": {"field": "employment_type", "equals": "self_employed"},
+      "min": 0,
+      "max": 200,
+      "collection": {"strategy": "human"}
+    },
+    "identity_verification": {
+      "type": "object",
+      "label": "Identity verification",
+      "required": true,
+      "dependsOn": ["applicant_name"],
+      "readyWhen": {"field": "consent_to_checks", "equals": true},
+      "collection": {"strategy": "activity", "activity": "verify_identity"}
+    },
+    "affordability_assessment": {
+      "type": "object",
+      "label": "Affordability assessment",
+      "required": true,
+      "dependsOn": ["employment_type", "annual_income", "business_operating_years"],
+      "readyWhen": {"field": "consent_to_checks", "equals": true},
+      "collection": {"strategy": "activity", "activity": "assess_affordability"}
+    },
+    "credit_check": {
+      "type": "object",
+      "label": "Credit check",
+      "requiredWhen": {"field": "identity_verification.status", "equals": "passed"},
+      "dependsOn": ["applicant_name", "identity_verification"],
+      "readyWhen": {"field": "consent_to_checks", "equals": true},
+      "collection": {"strategy": "activity", "activity": "fetch_credit_score"}
+    },
+    "final_confirmation": {
+      "type": "boolean",
+      "label": "I confirm the information above is accurate",
+      "requiredWhen": {
+        "and": [
+          {"field": "identity_verification", "exists": true},
+          {"field": "affordability_assessment", "exists": true}
+        ]
+      },
+      "collection": {"strategy": "human"}
+    }
+  },
+  "outcome": [
+    {"when": {"field": "final_confirmation", "equals": false}, "result": "withdrawn"},
+    {"when": {"field": "identity_verification.status", "notEquals": "passed"}, "result": "declined"},
+    {"when": {"field": "affordability_assessment.status", "equals": "unaffordable"}, "result": "declined"},
+    {"when": {"field": "credit_check.band", "equals": "poor"}, "result": "declined"},
+    {"result": "approved"}
+  ],
+  "next": [
+    {
+      "when": {"field": "outcome", "equals": "approved"},
+      "schema": "loan_offer",
+      "version": "1",
+      "as": "application"
+    },
+    {
+      "when": {
+        "and": [
+          {"field": "outcome", "equals": "declined"},
+          {"field": "identity_verification.status", "equals": "passed"},
+          {"field": "credit_check.band", "equals": "good"},
+          {"field": "affordability_assessment.status", "equals": "unaffordable"}
+        ]
+      },
+      "schema": "affordability_review",
+      "version": "1",
+      "as": "application"
+    }
+  ]
+}

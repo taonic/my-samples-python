@@ -19,7 +19,7 @@ async def main():
     try:
         result = await client.execute_workflow(
             ErrorHandlingWorkflow.run,
-            GreetInput(name="Tao"),
+            GreetInput(name=""),
             id=f"{WORKFLOW_ID}-{uuid.uuid4()}",
             task_queue=TASK_QUEUE,
         )

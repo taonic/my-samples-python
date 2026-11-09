@@ -1,0 +1,47 @@
+{
+  "$schema": "./progressive-data-resolution.schema.json",
+  "id": "offer_feedback",
+  "version": "1",
+  "title": "Tell us why you declined",
+  "context": ["application", "offer"],
+  "fields": {
+    "decline_reason": {
+      "type": "string",
+      "label": "Main reason for declining the offer",
+      "required": true,
+      "enum": ["rate_too_high", "amount_too_low", "found_elsewhere", "other"],
+      "collection": {"strategy": "human"}
+    },
+    "preferred_term": {
+      "type": "string",
+      "label": "Which term would you consider? (shorter terms have a lower APR)",
+      "requiredWhen": {"field": "decline_reason", "equals": "rate_too_high"},
+      "enum": ["12", "24", "36", "60"],
+      "collection": {"strategy": "human"}
+    },
+    "amount_needed": {
+      "type": "number",
+      "label": "How much did you need?",
+      "requiredWhen": {"field": "decline_reason", "equals": "amount_too_low"},
+      "min": 1000,
+      "collection": {"strategy": "human"}
+    },
+    "comments": {
+      "type": "string",
+      "label": "Tell us more",
+      "requiredWhen": {"field": "decline_reason", "equals": "other"},
+      "minLength": 5,
+      "collection": {"strategy": "human"}
+    },
+    "contact_ok": {
+      "type": "boolean",
+      "label": "May we contact you with a revised offer?",
+      "required": true,
+      "collection": {"strategy": "human"}
+    }
+  },
+  "outcome": [
+    {"when": {"field": "contact_ok", "equals": true}, "result": "follow_up_requested"},
+    {"result": "closed"}
+  ]
+}

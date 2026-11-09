@@ -11,7 +11,7 @@ from .workflow import OrderWorkflow
 async def main():
     client = await Client.connect("localhost:7233")
     replayer = Replayer(workflows=[OrderWorkflow])
-    executions = client.list_workflows(f"WorkflowType = '{OrderWorkflow.__name__}'")
+    executions = client.list_workflows(f"WorkflowType = '{OrderWorkflow.__name__}' AND ExecutionStatus = 'Running'")
     results = await replayer.replay_workflows(
         executions.map_histories(),
         raise_on_replay_failure=False,

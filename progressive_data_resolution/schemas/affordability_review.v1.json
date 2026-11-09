@@ -1,0 +1,54 @@
+{
+  "$schema": "./progressive-data-resolution.schema.json",
+  "id": "affordability_review",
+  "version": "1",
+  "title": "Affordability review",
+  "context": ["application"],
+  "fields": {
+    "other_income": {
+      "type": "number",
+      "label": "Other annual household income (rental, benefits, etc.; 0 if none)",
+      "required": true,
+      "min": 0,
+      "collection": {"strategy": "human"}
+    },
+    "has_co_applicant": {
+      "type": "boolean",
+      "label": "Will someone apply jointly with you?",
+      "required": true,
+      "collection": {"strategy": "human"}
+    },
+    "co_applicant_name": {
+      "type": "string",
+      "label": "Co-applicant's full name",
+      "requiredWhen": {"field": "has_co_applicant", "equals": true},
+      "minLength": 2,
+      "collection": {"strategy": "human"}
+    },
+    "co_applicant_income": {
+      "type": "number",
+      "label": "Co-applicant's annual income",
+      "requiredWhen": {"field": "has_co_applicant", "equals": true},
+      "min": 0,
+      "collection": {"strategy": "human"}
+    },
+    "business_accounts_year": {
+      "type": "string",
+      "label": "Latest year of filed business accounts",
+      "requiredWhen": {"field": "application.employment_type", "equals": "self_employed"},
+      "pattern": "20[0-9]{2}",
+      "collection": {"strategy": "human"}
+    },
+    "household_assessment": {
+      "type": "object",
+      "label": "Household affordability",
+      "required": true,
+      "dependsOn": ["application.annual_income", "other_income", "co_applicant_income"],
+      "collection": {"strategy": "activity", "activity": "assess_household_affordability"}
+    }
+  },
+  "outcome": [
+    {"when": {"field": "household_assessment.status", "equals": "affordable"}, "result": "referred_to_underwriter"},
+    {"result": "still_unaffordable"}
+  ]
+}

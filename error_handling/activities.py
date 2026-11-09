@@ -14,4 +14,6 @@ async def greet(params: GreetInput) -> str:
         if not params.name:
             raise ApplicationError("name must not be empty", type="InvalidGreeting", non_retryable=True)
     """
+    if not params.name:
+        raise ApplicationError("name must not be empty", type="InvalidGreeting", non_retryable=True)
     return f"Hello, {params.name}!"

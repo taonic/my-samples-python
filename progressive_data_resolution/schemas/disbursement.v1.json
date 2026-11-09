@@ -1,0 +1,47 @@
+{
+  "$schema": "./progressive-data-resolution.schema.json",
+  "id": "disbursement",
+  "version": "1",
+  "title": "Disbursement",
+  "context": ["application", "offer"],
+  "fields": {
+    "pay_to_repayment_account": {
+      "type": "boolean",
+      "label": "Pay the loan into your repayment account?",
+      "required": true,
+      "collection": {"strategy": "human"}
+    },
+    "payout_account": {
+      "type": "string",
+      "label": "Payout account number (8 digits)",
+      "requiredWhen": {"field": "pay_to_repayment_account", "equals": false},
+      "pattern": "[0-9]{8}",
+      "collection": {"strategy": "human"}
+    },
+    "salary_day": {
+      "type": "number",
+      "label": "Day of the month you are paid (repayments are taken the day after)",
+      "requiredWhen": {"field": "application.employment_type", "equals": "employed"},
+      "min": 1,
+      "max": 28,
+      "collection": {"strategy": "human"}
+    },
+    "business_purpose": {
+      "type": "string",
+      "label": "What will the business use the loan for?",
+      "requiredWhen": {"field": "application.employment_type", "equals": "self_employed"},
+      "enum": ["equipment", "working_capital", "property", "other"],
+      "collection": {"strategy": "human"}
+    },
+    "disbursement": {
+      "type": "object",
+      "label": "Payout booking",
+      "required": true,
+      "dependsOn": ["offer.loan_amount", "offer.repayment_account", "pay_to_repayment_account", "payout_account"],
+      "collection": {"strategy": "activity", "activity": "schedule_disbursement"}
+    }
+  },
+  "outcome": [
+    {"result": "scheduled"}
+  ]
+}

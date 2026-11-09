@@ -78,6 +78,15 @@ workflow and at the client, and choosing between failing and degrading.
 
 See [error_handling/README.md](error_handling/README.md) for details.
 
+### Progressive Data Resolution (Declarative Reconciliation)
+A long-running workflow whose path is decided by a versioned JSON schema and the
+data collected so far, not by a hard-coded sequence of steps. Collects human input
+through Updates, runs automated checks as activities once their inputs are ready,
+handles corrections and stale results, and ships with a dynamic web form and debug
+panel. *An experiment, not a recommended pattern.*
+
+See [progressive_data_resolution/README.md](progressive_data_resolution/README.md) for details.
+
 ## Resources
 
 - [Temporal Documentation](https://docs.temporal.io/docs/python)

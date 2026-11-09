@@ -1,0 +1,1321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Progressive Data Resolution</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #5d6677; --border: #dde1e8;
+    --accent: #3b5bdb; --accent-text: #ffffff; --code-bg: #f1f3f6;
+    --ok: #2b8a3e; --ok-bg: #e6f4ea; --warn: #b35c00; --warn-bg: #fff3e0;
+    --bad: #c92a2a; --bad-bg: #fdecec; --info: #1c63b7; --info-bg: #e7f0fb; --idle: #6b7280; --idle-bg: #eef0f3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1b1f27; --text: #e4e7ec; --muted: #9aa3b2; --border: #2c323d;
+      --accent: #7c93f2; --accent-text: #0e1220; --code-bg: #232833;
+      --ok: #69db7c; --ok-bg: #1d3324; --warn: #ffb35c; --warn-bg: #3a2a16;
+      --bad: #ff8787; --bad-bg: #3b1d1d; --info: #74b0f5; --info-bg: #182a40; --idle: #9aa3b2; --idle-bg: #262b35;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+           justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border);
+           background: linear-gradient(110deg, color-mix(in srgb, var(--accent) 16%, var(--panel)) 0%,
+                       var(--panel) 55%, color-mix(in srgb, var(--info) 8%, var(--panel)) 100%);
+           backdrop-filter: blur(6px); }
+  header .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  header .logo { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px;
+                 background: linear-gradient(135deg, var(--accent), var(--info)); color: var(--accent-text);
+                 box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent); }
+  header h1 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; margin: 0; display: flex;
+              align-items: center; gap: 8px; flex-wrap: wrap; }
+  header .tag { font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px;
+                border-radius: 999px; color: var(--warn); background: var(--warn-bg); }
+  header .sub { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  header .sub a { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+  main { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; padding: 16px 20px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 16px; } }
+  section.card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; min-width: 0; }
+  h2 { font-size: 15px; margin: 0 0 12px; }
+  h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 20px 0 8px; }
+  button { font: inherit; border-radius: 6px; border: 1px solid var(--border); background: var(--panel);
+           color: var(--text); padding: 6px 12px; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-weight: 600; margin-bottom: 4px; }
+  .field input, .field select { width: 100%; font: inherit; padding: 7px 9px; border-radius: 6px;
+           border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+  .field .err { color: var(--bad); font-size: 12px; margin-top: 3px; }
+  .field.changed input, .field.changed select { border-color: var(--accent); }
+  .field.asked { border-radius: 6px; animation: asked 1.6s ease-out; }
+  @keyframes asked { 0%, 35% { outline: 2px solid var(--accent); outline-offset: 4px; } 100% { outline: 2px solid transparent; outline-offset: 4px; } }
+  @media (prefers-reduced-motion: reduce) { .field.asked { animation: none; } }
+  .banner { padding: 10px 12px; border-radius: 8px; margin-bottom: 14px; background: var(--info-bg); color: var(--info); }
+  .banner.ok { background: var(--ok-bg); color: var(--ok); }
+  .banner.bad { background: var(--bad-bg); color: var(--bad); }
+  .banner.warn { background: var(--warn-bg); color: var(--warn); }
+  .chip { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px;
+          background: var(--idle-bg); color: var(--idle); white-space: nowrap; }
+  .chip.satisfied, .chip.completed, .chip.approved, .chip.accepted, .chip.scheduled,
+  .chip.referred_to_underwriter, .chip.follow_up_requested { background: var(--ok-bg); color: var(--ok); }
+  .journey { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 12px;
+             color: var(--muted); margin-bottom: 10px; }
+  .chip.missing, .chip.pending, .chip.waiting_for_input { background: var(--warn-bg); color: var(--warn); }
+  .chip.in_progress, .chip.running { background: var(--info-bg); color: var(--info); }
+  .chip.failed, .chip.declined, .chip.cancelled, .chip.withdrawn, .chip.offer_declined,
+  .chip.still_unaffordable { background: var(--bad-bg); color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  td.reason { color: var(--muted); }
+  .table-wrap { overflow-x: auto; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  pre { background: var(--code-bg); padding: 10px; border-radius: 6px; overflow-x: auto; margin: 0; }
+  .kv { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+  .kv div span { color: var(--muted); margin-right: 6px; }
+  .decision { border-left: 3px solid var(--border); padding: 4px 0 4px 10px; margin-bottom: 8px; }
+  .decision .trigger { font-weight: 600; }
+  .decision .meta { color: var(--muted); font-size: 12px; }
+  .check { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .muted { color: var(--muted); }
+  .stale { text-decoration: line-through; color: var(--muted); }
+  a { color: var(--accent); }
+  header .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .launcher { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; padding-bottom: 14px;
+              border-bottom: 1px solid var(--border); }
+  .launcher select { flex: 1; min-width: 0; font: inherit; padding: 6px 8px; border-radius: 6px;
+                     border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+  .launcher button { flex: none; }
+  .scenario { border: 1px dashed var(--accent); border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; }
+  .scenario .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+  .scenario .title { font-weight: 600; }
+  .scenario .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .scenario .buttons { display: flex; gap: 6px; }
+  .scenario code { overflow-wrap: anywhere; }
+  .side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .loop svg { display: block; width: 100%; height: auto; }
+  .loop .grid-dot { fill: var(--border); }
+  .loop .track { fill: none; stroke: var(--border); stroke-width: 16; opacity: .3; }
+  .loop .hub { fill: color-mix(in srgb, var(--accent) 7%, var(--panel));
+               stroke: color-mix(in srgb, var(--accent) 30%, var(--border)); stroke-width: 1; }
+  .loop .hub.pulse { transform-box: fill-box; transform-origin: center; animation: hub .7s ease-out; }
+  @keyframes hub { 0% { transform: scale(1.15); stroke-width: 2.5; } 100% { transform: scale(1); } }
+  .loop .node rect { fill: var(--panel); stroke: var(--border); stroke-width: 1; filter: url(#loop-shadow);
+                     transition: fill .25s, stroke .25s; }
+  .loop .node text { fill: var(--text); font: 600 9px ui-monospace, SFMono-Regular, Menlo, monospace; text-anchor: middle; }
+  .loop .node text.sub { fill: var(--muted); font-weight: 400; font-size: 7.5px; }
+  .loop .node .badge circle { fill: var(--idle-bg); stroke: var(--border); stroke-width: 1; transition: fill .25s, stroke .25s; }
+  .loop .node .badge text { fill: var(--muted); font: 700 7px system-ui, sans-serif; }
+  .loop .node.hot .badge circle { fill: var(--accent); stroke: var(--accent); }
+  .loop .node.hot .badge text { fill: var(--accent-text); }
+  /* Boxes outside the ring are tinted by role. */
+  .loop .node.source rect { fill: color-mix(in srgb, var(--accent) 9%, var(--panel)); stroke: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+  .loop .node.work rect { fill: color-mix(in srgb, var(--ok) 9%, var(--panel)); stroke: color-mix(in srgb, var(--ok) 40%, var(--border)); }
+  .loop .node.schema rect { fill: color-mix(in srgb, var(--warn) 9%, var(--panel)); stroke: color-mix(in srgb, var(--warn) 40%, var(--border)); }
+  .loop .node.exit rect { fill: color-mix(in srgb, var(--info) 9%, var(--panel)); stroke: color-mix(in srgb, var(--info) 40%, var(--border)); }
+  .loop .node.hot rect, .loop .node.landed rect { fill: var(--info-bg); stroke: var(--accent); stroke-width: 1.5; filter: url(#loop-glow); }
+  .flyer { position: fixed; left: 0; top: 0; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%;
+           background: var(--accent); box-shadow: 0 0 0 3px var(--info-bg), 0 0 12px var(--accent);
+           pointer-events: none; z-index: 10; }
+  .loop .node.busy rect { stroke: var(--ok); stroke-width: 1.25; animation: busy 1.2s ease-in-out infinite; }
+  .loop .node.done rect { fill: var(--ok-bg); stroke: var(--ok); }
+  @keyframes busy { 50% { stroke-opacity: .25; } }
+  .loop .edge { fill: none; stroke: var(--border); stroke-width: 1.1; stroke-linecap: round; transition: stroke .15s; }
+  .loop .edge.dashed { stroke-dasharray: 3 3; }
+  .loop .edge.lit { stroke: var(--accent); stroke-width: 1.6; }
+  .loop marker path { fill: var(--muted); }
+  .loop marker#loop-arrow-lit path { fill: var(--accent); }
+  .loop .elabel { fill: var(--muted); font: 7.5px system-ui, sans-serif;
+                  paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
+  .loop .rev { fill: var(--text); font: 700 13px system-ui, sans-serif; text-anchor: middle; }
+  .loop .rev-sub { fill: var(--muted); font: 7.5px system-ui, sans-serif; text-anchor: middle; text-transform: uppercase; letter-spacing: .06em; }
+  .loop .token { fill: var(--accent); }
+  .loop .token.head { filter: url(#loop-glow); }
+  .loop .hub-button { cursor: pointer; }
+  .loop .hub-button:hover .hub, .loop .hub-button:focus-visible .hub { stroke: var(--accent); stroke-width: 1.5; }
+  .loop .hub-button:focus { outline: none; }
+  .loop-hint { color: var(--muted); font-size: 11px; text-align: center; margin-top: 2px; }
+  .loop-caption { margin-top: 8px; min-height: 40px; font-size: 12px; }
+  .loop-caption .what { color: var(--muted); }
+  .loop .node.clickable { cursor: pointer; }
+  .loop .node.clickable:hover rect, .loop .node.clickable:focus-visible rect { stroke: var(--accent); }
+  .loop .node.clickable:focus { outline: none; }
+  .loop .schema-chip { cursor: pointer; }
+  .loop .schema-chip rect { fill: var(--info-bg); stroke: var(--accent); stroke-width: .75; transition: fill .3s; }
+  .loop .schema-chip text { fill: var(--accent); font: 600 8.5px system-ui, sans-serif; transition: fill .3s; }
+  .loop .schema-chip .doc { fill: none; stroke: var(--accent); stroke-width: .9; transition: stroke .3s; }
+  .loop .schema-chip:hover rect, .loop .schema-chip:focus-visible rect { stroke-width: 1.5; }
+  .loop .schema-chip:focus { outline: none; }
+  .loop .schema-chip.fresh rect { fill: var(--accent); }
+  .loop .schema-chip.fresh text { fill: var(--accent-text); }
+  .loop .schema-chip.fresh .doc { stroke: var(--accent-text); }
+  .loop-schema { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .loop .node.loading { transform-box: fill-box; transform-origin: center; animation: pop .8s ease-in-out 3; }
+  .loop .node.loading rect { fill: var(--warn-bg); stroke: var(--warn); animation: glow .8s ease-in-out 3; }
+  .loop .node.loading text.sub { fill: var(--warn); font-weight: 700; }
+  @keyframes pop { 50% { transform: scale(1.03); } }
+  @keyframes glow { 0%, 100% { stroke-width: 1.5; } 50% { stroke-width: 3; stroke-opacity: .5; } }
+  @media (prefers-reduced-motion: reduce) {
+    .loop .node.busy rect, .loop .node.loading, .loop .node.loading rect, .loop .hub.pulse { animation: none; }
+  }
+  button.link { border: 0; padding: 0; background: none; color: var(--accent); cursor: pointer;
+                text-decoration: underline dotted; text-underline-offset: 3px; }
+  dialog.schema { width: min(920px, 94vw); max-height: 88vh; padding: 0; border: 1px solid var(--border);
+                  border-radius: 10px; background: var(--panel); color: var(--text); }
+  dialog.schema::backdrop { background: rgba(0, 0, 0, .45); }
+  dialog.schema:focus { outline: none; }
+  dialog.schema .inner { padding: 18px; }
+  .schema-view .head { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; }
+  .schema-view .head h2 { margin: 0; }
+  .schema-view nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; font-size: 12px; }
+  .schema-view nav button { padding: 2px 10px; font-size: 12px; }
+  .schema-view nav button[aria-current] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .schema-view td { overflow-wrap: break-word; }
+  .schema-view td .muted { font-size: 12px; }
+  .schema-view ul { margin: 0; padding-left: 20px; }
+  .schema-view .tools { display: flex; gap: 8px; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 4px 10px; font-size: 12px; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--info-bg); color: var(--accent); font-weight: 600; }
+  /* Colour-coded code: Python source and raw schema JSON. */
+  :root { --t-kw: #a626a4; --t-str: #50a14f; --t-com: #a0a1a7; --t-num: #986801; --t-fn: #4078f2;
+          --t-dec: #c18401; --t-self: #e45649; --t-bi: #0184bc; --t-key: #e45649; }
+  @media (prefers-color-scheme: dark) {
+    :root { --t-kw: #c678dd; --t-str: #98c379; --t-com: #7f848e; --t-num: #d19a66; --t-fn: #61afef;
+            --t-dec: #e5c07b; --t-self: #e06c75; --t-bi: #56b6c2; --t-key: #e06c75; }
+  }
+  pre.code { font-size: 12px; line-height: 1.55; padding: 10px 12px; border: 1px solid var(--border); }
+  pre.code .ln { display: inline-block; width: 3.2em; margin-right: 12px; color: var(--muted); opacity: .55;
+                 text-align: right; user-select: none; }
+  .t-kw { color: var(--t-kw); } .t-str { color: var(--t-str); } .t-com { color: var(--t-com); font-style: italic; }
+  .t-num { color: var(--t-num); } .t-fn { color: var(--t-fn); font-weight: 600; } .t-dec { color: var(--t-dec); }
+  .t-self { color: var(--t-self); } .t-bi { color: var(--t-bi); } .t-key { color: var(--t-key); }
+  .code-view .part { margin-top: 16px; }
+  .code-view .part-title { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin-bottom: 6px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 12a8 8 0 0 1-13.7 5.6"/><path d="M4 12a8 8 0 0 1 13.7-5.6"/>
+        <path d="M18 2.5v4.3h-4.3"/><path d="M6 21.5v-4.3h4.3"/><circle cx="12" cy="12" r="2" fill="currentColor"/>
+      </svg>
+    </div>
+    <div>
+      <h1>Progressive Data Resolution <span class="tag">Temporal experiment</span></h1>
+      <div class="sub" id="wf-id">No application selected</div>
+    </div>
+  </div>
+  <div class="actions">
+    <button data-version="1" class="start">New loan application</button>
+  </div>
+</header>
+<main>
+  <section class="card">
+    <div class="launcher">
+      <button id="scenario-start" class="primary">Start scenario</button>
+      <select id="scenario-select" aria-label="Scenario"><option value="">Choose a scenario...</option></select>
+    </div>
+    <div id="surface"><p class="muted">Start a scenario, or a new loan application, to begin.</p></div>
+  </section>
+  <div class="side">
+    <section class="card loop" id="loop"><h2>Reconciliation loop</h2><p class="muted">Nothing to show yet.</p></section>
+    <section class="card" id="debug"><h2>Engine state</h2><p class="muted">Nothing to show yet.</p></section>
+  </div>
+</main>
+<dialog class="schema" id="schema-dialog" aria-labelledby="schema-title"><div class="inner schema-view"></div></dialog>
+<dialog class="schema" id="code-dialog" aria-labelledby="code-title"><div class="inner schema-view code-view"></div></dialog>
+<script>
+// This page knows nothing about loan applications. It renders whatever
+// components the surface model lists and posts back the fields that changed.
+const params = new URLSearchParams(location.search);
+let workflowId = params.get("id");
+let surface = null;
+let edits = {};            // field -> raw input value the user has typed but not submitted
+let fieldErrors = {};      // field -> server-side validation error from the last submit
+let notice = null;         // {kind, text} shown above the form
+let pending = null;        // {id, body} of the last submission, reused if the request fails
+let pollTimer = null;
+let state = null;          // latest full workflow state, for scenario templates and paths
+
+// Scenario player. Scenarios are data (scenarios.json): ordered steps of field
+// values per form, so the page stays generic. `{{path}}` values are filled from
+// data carried over from earlier forms, e.g. {{application.affordability_assessment.max_loan}}.
+let scenarios = [];
+let scenario = null;       // the active scenario
+let progress = null;       // {index, submitted: [fields], paused}
+let playing = false;
+let result = null;         // {ok, actual} once a run has finished
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function h(tag, attrs = {}, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "class") el.className = v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of children.flat()) if (c !== null && c !== undefined) el.append(c instanceof Node ? c : String(c));
+  return el;
+}
+const chip = (s) => h("span", { class: `chip ${s}` }, String(s).replaceAll("_", " "));
+const pretty = (v) => JSON.stringify(v, null, 2);
+const humanize = (s) => s.replaceAll("_", " ");
+
+async function api(path, options = {}) {
+  const res = await fetch(path, { headers: { "content-type": "application/json" }, ...options });
+  const body = await res.json().catch(() => ({}));
+  return { status: res.status, body };
+}
+
+async function refresh() {
+  if (!workflowId) return;
+  const [s, st] = await Promise.all([
+    api(`/applications/${workflowId}/surface`),
+    api(`/applications/${workflowId}/state`),
+  ]);
+  if (s.status !== 200) {
+    notice = { kind: "bad", text: s.body.detail || "Could not load application" };
+    renderSurface(); return;
+  }
+  if (surface && surface.phase && s.body.phase && s.body.phase !== surface.phase) {
+    // The workflow continued into a follow-up form: drop edits meant for the old one.
+    edits = {}; fieldErrors = {}; pending = null;
+    const prev = st.body.phases[st.body.phases.length - 1];
+    notice = { kind: "ok", text: `${humanize(prev.schema_id)} ${prev.outcome}. Next: ${s.body.title}.` };
+  }
+  surface = s.body;
+  state = st.body;
+  renderSurface();
+  renderDebug(st.body);
+  updateLoop(st.body);
+  schedulePoll();
+}
+
+function schedulePoll() {
+  clearTimeout(pollTimer);
+  // Poll while automated work is in flight; otherwise refresh after submissions.
+  if (surface && surface.status === "running") pollTimer = setTimeout(refresh, 1000);
+}
+
+// ---- Surface -------------------------------------------------------------
+
+function inputFor(c) {
+  const current = c.field in edits ? edits[c.field] : (c.value ?? "");
+  const onchange = (e) => { edits[c.field] = e.target.value; e.target.closest(".field").classList.add("changed"); };
+  const common = { id: `f-${c.field}`, name: c.field, oninput: onchange, onchange, disabled: !surface.can_submit };
+  if (c.type === "dropdown" || c.type === "boolean_input") {
+    const options = c.type === "dropdown"
+      ? c.options.map((o) => [o, humanize(o)])
+      : [["true", "Yes"], ["false", "No"]];
+    const sel = h("select", common, h("option", { value: "" }, "Select..."),
+      options.map(([v, label]) => h("option", { value: v }, label)));
+    sel.value = String(current);
+    return sel;
+  }
+  const k = c.constraints;
+  return h("input", {
+    ...common,
+    type: c.type === "number_input" ? "number" : "text",
+    step: c.type === "number_input" ? "any" : null,
+    min: k.min, max: k.max, minlength: k.minLength, maxlength: k.maxLength, pattern: k.pattern,
+    value: String(current),
+  });
+}
+
+function parse(c, raw) {
+  if (raw === "") return undefined;
+  if (c.type === "number_input") return Number(raw);
+  if (c.type === "boolean_input") return raw === "true";
+  return raw;
+}
+
+function renderSurface() {
+  const root = document.getElementById("surface");
+  root.replaceChildren();
+  if (!surface) {
+    if (notice) root.append(h("div", { class: `banner ${notice.kind}` }, notice.text));
+    return;
+  }
+  renderScenarioBar(root);
+  const journey = surface.journey || [];
+  if (journey.length) {
+    // The branch taken so far: each earlier form and how it ended.
+    root.append(h("div", { class: "journey" },
+      journey.flatMap((p) => [h("span", {}, humanize(p.schema_id), " ", chip(p.outcome || "none")), " → "]),
+      h("strong", {}, surface.title)));
+  }
+  root.append(h("h2", {}, surface.step > 1 ? `Step ${surface.step}: ` : "", surface.title));
+  if (surface.outcome) {
+    const good = ["approved", "accepted", "scheduled", "referred_to_underwriter", "follow_up_requested"];
+    const kind = good.includes(surface.outcome) ? "ok" : surface.outcome === "closed" ? "" : "bad";
+    root.append(h("div", { class: `banner ${kind}` }, `Outcome: ${surface.outcome}. `, surface.message));
+  } else {
+    const kind = { impossible: "warn", action_failed: "bad" }[surface.progress] ||
+                 (surface.status === "cancelled" ? "bad" : "");
+    root.append(h("div", { class: `banner ${kind}` }, surface.message));
+  }
+  if (notice) root.append(h("div", { class: `banner ${notice.kind}` }, notice.text));
+
+  const form = h("form", { novalidate: true, onsubmit: onSubmit });
+  for (const c of surface.components) {
+    const err = fieldErrors[c.field] || c.error;
+    form.append(h("div", { class: `field ${c.field in edits ? "changed" : ""}` },
+      h("label", { for: `f-${c.field}` }, c.label, c.required ? " *" : ""),
+      inputFor(c),
+      err ? h("div", { class: "err" }, err) : null));
+  }
+  if (surface.can_submit) form.append(h("button", { class: "primary", type: "submit" }, "Submit"));
+  root.append(form);
+
+  if (surface.automated.length) {
+    root.append(h("h3", {}, "Automated checks"));
+    for (const a of surface.automated) {
+      const detail = a.result ? Object.entries(a.result).map(([k, v]) => `${humanize(k)}: ${v}`).join(", ") : a.reason;
+      root.append(h("div", { class: "check" },
+        h("div", {}, h("div", {}, a.label), h("div", { class: "muted" }, detail)), h("div", {}, chip(a.status))));
+    }
+  }
+}
+
+async function onSubmit(e) {
+  e.preventDefault();
+  await submitForm();
+}
+
+// Submits the fields that differ from the current state. Returns true if accepted.
+async function submitForm() {
+  fieldErrors = {};
+  const values = {};
+  for (const c of surface.components) {
+    const el = document.getElementById(`f-${c.field}`);
+    if (el.value !== "" && !el.checkValidity()) { fieldErrors[c.field] = el.validationMessage; continue; }
+    const v = parse(c, el.value);
+    if (v !== undefined && v !== c.value) values[c.field] = v;
+  }
+  if (Object.keys(fieldErrors).length) { notice = null; renderSurface(); return false; }
+  if (!Object.keys(values).length) { notice = { kind: "warn", text: "Nothing has changed." }; renderSurface(); return false; }
+
+  flyToUpdates(document.querySelector("#surface form button[type=submit]"));
+  const body = JSON.stringify({ baseRevision: surface.revision, values });
+  // Reuse the id if we are re-sending the same submission after a failure.
+  const submissionId = pending && pending.body === body ? pending.id : crypto.randomUUID();
+  pending = { id: submissionId, body };
+  let res;
+  try {
+    res = await api(`/applications/${workflowId}/submissions`, {
+      method: "POST", body: JSON.stringify({ submissionId, ...JSON.parse(body) }),
+    });
+  } catch (err) {
+    notice = { kind: "bad", text: "Network error, press Submit again to retry." }; renderSurface(); return false;
+  }
+  pending = null;
+  if (res.status === 200) {
+    edits = {};
+    recordSubmission(values);
+    notice = res.body.changed_fields.length
+      ? { kind: "ok", text: `Saved ${res.body.changed_fields.map(humanize).join(", ")} (revision ${res.body.revision}).` }
+      : null;
+  } else if (res.status === 422) {
+    fieldErrors = res.body.detail.errors || {};
+    notice = { kind: "bad", text: "Please fix the highlighted fields." };
+  } else if (res.status === 409) {
+    const conflicts = res.body.detail.conflicts || {};
+    const list = Object.entries(conflicts).map(([f, why]) => `${humanize(f)}: ${why}`).join("; ");
+    notice = { kind: "warn", text: `The form was out of date and has been refreshed. ${list || res.body.detail.message}` };
+    for (const f of Object.keys(conflicts)) delete edits[f];
+  } else {
+    notice = { kind: "bad", text: `Unexpected error (${res.status}).` };
+  }
+  await refresh();
+  return res.status === 200;
+}
+
+// ---- Scenarios -----------------------------------------------------------
+
+const storeKey = () => `pdr-scenario:${workflowId}`;
+function saveProgress() {
+  try { sessionStorage.setItem(storeKey(), JSON.stringify({ id: scenario.id, ...progress })); } catch {}
+}
+function loadProgress() {
+  try { return JSON.parse(sessionStorage.getItem(storeKey()) || "null"); } catch { return null; }
+}
+
+function currentForm() { return state ? state.schema_id : null; }
+
+function lookupPath(obj, path) {
+  return path.split(".").reduce((o, k) => (o && typeof o === "object" && k in o ? o[k] : undefined), obj);
+}
+
+// A value of exactly "{{a.b.c}}" is replaced by that value from earlier forms or this one.
+function resolveTemplate(v) {
+  const m = typeof v === "string" && v.match(/^\{\{\s*([\w.]+)\s*\}\}$/);
+  if (!m) return v;
+  const found = lookupPath(state.context, m[1]) ?? lookupPath(state.values, m[1]);
+  return found === undefined ? v : found;
+}
+
+function advance() {
+  progress = { index: progress.index + 1, submitted: [], paused: false };
+  saveProgress();
+}
+
+// The next step to fill. Steps for forms already completed are skipped.
+function currentStep() {
+  if (!scenario || !state) return null;
+  const done = state.phases.map((p) => p.schema_id);
+  while (progress.index < scenario.steps.length) {
+    const step = scenario.steps[progress.index];
+    const pending = Object.keys(step.values).filter((f) => !progress.submitted.includes(f));
+    if (step.form === currentForm() && !pending.length) { advance(); continue; }
+    if (step.form !== currentForm() && done.includes(step.form)) { advance(); continue; }
+    return step;
+  }
+  return null;
+}
+
+// Puts the current step's values into the visible fields. Returns how many were filled.
+function fillStep() {
+  const step = currentStep();
+  if (!step || step.form !== currentForm()) return 0;
+  let filled = 0;
+  for (const c of surface.components) {
+    if (!(c.field in step.values) || progress.submitted.includes(c.field)) continue;
+    const target = resolveTemplate(step.values[c.field]);
+    if (target === c.value) { progress.submitted.push(c.field); continue; }  // already set
+    edits[c.field] = String(target);
+    filled++;
+  }
+  saveProgress();
+  renderSurface();
+  return filled;
+}
+
+function recordSubmission(values) {
+  const step = currentStep();
+  if (!step) return;
+  for (const f of Object.keys(values)) {
+    if (f in step.values && !progress.submitted.includes(f)) progress.submitted.push(f);
+  }
+  saveProgress();
+}
+
+// "form:outcome" for each completed form, then the current one.
+function actualPath() {
+  if (!state) return "";
+  const parts = state.phases.map((p) => `${p.schema_id}:${p.outcome}`);
+  parts.push(state.status === "completed"
+    ? `${state.schema_id}:${state.outcome}`
+    : `${state.schema_id}:(${state.progress || state.status})`);
+  return parts.join(" > ");
+}
+
+async function play() {
+  playing = true; result = null;
+  let idle = 0;
+  while (playing) {
+    await refresh();
+    if (["completed", "cancelled", "failed"].includes(surface.status)) break;
+    const step = currentStep();
+    if (step && step.form === currentForm()) {
+      if (step.pauseMs && !progress.paused) {
+        progress.paused = true; saveProgress();
+        notice = { kind: "", text: `Scenario: pausing ${step.pauseMs / 1000}s so you can see this state.` };
+        renderSurface(); await sleep(step.pauseMs); continue;
+      }
+      if (fillStep()) {
+        await sleep(700);  // let the filled form be seen before it is sent
+        if (!(await submitForm())) break;
+        idle = 0; continue;
+      }
+    }
+    if (!step && surface.status !== "running") break;      // script finished
+    if (surface.status !== "running" && ++idle > 8) break;  // nothing more will happen
+    await sleep(500);
+  }
+  playing = false;
+  await refresh();
+  const actual = actualPath();
+  result = { ok: actual === scenario.expect, actual };
+  renderSurface();
+}
+
+function renderScenarioBar(root) {
+  if (!scenario) return;
+  const step = currentStep();
+  const stepText = step
+    ? `Step ${progress.index + 1} of ${scenario.steps.length} (${humanize(step.form)}): ` +
+      Object.entries(step.values).map(([f, v]) => `${f}=${JSON.stringify(v)}`).join(", ")
+    : "All steps sent.";
+  const canFill = !playing && step && step.form === currentForm() && surface.can_submit;
+  root.append(h("div", { class: "scenario" },
+    h("div", { class: "row" },
+      h("span", { class: "title" }, `Scenario: ${scenario.title}`),
+      h("span", { class: "buttons" },
+        h("button", { class: canFill ? "primary" : "", disabled: !canFill, onclick: () => fillStep() }, "Fill step"),
+        playing
+          ? h("button", { onclick: () => { playing = false; } }, "Stop")
+          : ["completed", "cancelled", "failed"].includes(surface.status) || result
+            ? h("button", { class: "primary", onclick: () => startScenario(scenario.id, true) }, "Run again")
+            : h("button", { disabled: !step, onclick: play }, "Play"))),
+    h("div", { class: "meta" }, scenario.description),
+    h("div", { class: "meta" }, stepText),
+    h("div", { class: "meta" }, "Expected: ", h("code", {}, scenario.expect)),
+    result ? h("div", { class: `banner ${result.ok ? "ok" : "bad"}`, style: "margin: 8px 0 0" },
+      result.ok ? "Reached the expected path: " : "Different from expected. Actual: ",
+      h("code", {}, result.actual)) : null));
+}
+
+// ---- Debug panel ---------------------------------------------------------
+
+function renderDebug(state) {
+  const root = document.getElementById("debug");
+  root.replaceChildren(h("h2", {}, "Engine state"));
+  root.append(h("div", { class: "kv" },
+    h("div", {}, h("span", {}, "status"), chip(state.status)),
+    h("div", {}, h("span", {}, "revision"), h("code", {}, state.revision)),
+    h("div", {}, h("span", {}, "progress"), state.progress ? chip(state.progress) : "-"),
+    h("div", {}, h("span", {}, "schema"), schemaLink(state.schema_id, state.schema_version)),
+    state.status_reason ? h("div", {}, h("span", {}, "reason"), state.status_reason) : null));
+
+  root.append(h("h3", {}, "Requirements"));
+  root.append(h("div", { class: "table-wrap" }, h("table", {},
+    h("tr", {}, h("th", {}, "requirement"), h("th", {}, "status"), h("th", {}, "why")),
+    state.requirements.map((r) => h("tr", {},
+      h("td", {}, h("code", {}, r.id), r.kind === "activity" ? h("span", { class: "muted" }, " (auto)") : null),
+      h("td", {}, chip(r.status), r.impossible ? " " : null, r.impossible ? chip("impossible") : null),
+      h("td", { class: "reason" }, r.reason))))));
+
+  root.append(h("h3", {}, "Actions"));
+  const actions = [...state.actions].sort((a, b) => (a.type > b.type ? -1 : 1));
+  root.append(h("div", { class: "table-wrap" }, h("table", {},
+    h("tr", {}, h("th", {}, "action"), h("th", {}, "status"), h("th", {}, "notes")),
+    actions.map((a) => h("tr", {},
+      h("td", {}, h("code", { class: a.stale ? "stale" : "" }, a.id)),
+      h("td", {}, chip(a.status)),
+      h("td", { class: "reason" },
+        a.attempts > 1 ? `run ${a.attempts}x. ` : "",
+        a.stale ? "stale: inputs changed while running; result not used. " : "",
+        a.error || "",
+        a.status === "failed" ? h("button", { onclick: (e) => { flyToUpdates(e.currentTarget); retryAction(a.id); } }, "Retry") : null))))));
+
+  if (state.phases.length) {
+    root.append(h("h3", {}, "Completed forms (continued as new)"));
+    root.append(h("div", {}, state.phases.map((p) =>
+      h("div", {}, schemaLink(p.schema_id, p.schema_version), " ", chip(p.outcome || "none"),
+        h("span", { class: "muted" }, ` at revision ${p.revision}`)))));
+    root.append(h("h3", {}, "Context (read-only, from earlier forms)"), h("pre", {}, pretty(state.context)));
+  }
+  root.append(h("h3", {}, "Collected data"), h("pre", {}, pretty(state.data)));
+  if (Object.keys(state.retained).length) {
+    root.append(h("h3", {}, "Retained, not applicable"), h("pre", {}, pretty(state.retained)));
+  }
+  root.append(h("h3", {}, "Activity results (by input fingerprint)"), h("pre", {}, pretty(state.results)));
+
+  root.append(h("h3", {}, "Latest decisions"));
+  for (const d of [...state.decisions].reverse().slice(0, 12)) {
+    root.append(h("div", { class: "decision" },
+      h("div", {}, h("code", {}, `rev ${d.revision}`), " ", h("span", { class: "trigger" }, d.trigger)),
+      h("div", {}, d.reason),
+      d.new_actions.length ? h("div", { class: "meta" }, `new actions: ${d.new_actions.join(", ")}`) : null));
+  }
+}
+
+// ---- Reconciliation loop animation ---------------------------------------
+// Replays each decision the workflow recorded since the last poll as one pass
+// around the loop: event → _apply → resolve → plan → start → wait. A form that
+// completes into a follow-up shows select_next → load_schema for the next form.
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+function s(tag, attrs = {}, ...children) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v !== null && v !== undefined) el.setAttribute(k, v);
+  for (const c of children.flat()) if (c !== null && c !== undefined) el.append(c instanceof Node ? c : String(c));
+  return el;
+}
+
+// Top to bottom: a new application names its schema, load_schema loads it and the
+// first reconcile starts at resolve. The ring then runs clockwise; events enter the
+// inbox from the left, next to the form, and results come back along the bottom.
+const RING = { cx: 330, cy: 225, rx: 130, ry: 80 };
+const ANGLES = { inbox: 126, apply: 198, resolve: 270, plan: 342, start: 54 };
+const onRing = (deg) => {
+  const r = (deg * Math.PI) / 180;
+  return [RING.cx + RING.rx * Math.cos(r), RING.cy + RING.ry * Math.sin(r)];
+};
+const at = (id) => { const [x, y] = onRing(ANGLES[id]); return { x, y, ring: true }; };
+const NODES = {
+  inbox: { ...at("inbox"), label: "inbox", sub: "wait_condition" },
+  apply: { ...at("apply"), label: "apply", sub: "event → state" },
+  resolve: { ...at("resolve"), label: "resolve", sub: "requirements" },
+  plan: { ...at("plan"), label: "plan", sub: "plan_actions" },
+  start: { ...at("start"), label: "start", sub: "_start_activity" },
+  begin: { x: 330, y: 20, w: 140, label: "New application", sub: "" },
+  load: { x: 330, y: 78, w: 140, label: "load schema", sub: "" },
+  exit: { x: 110, y: at("resolve").y, label: "select next", sub: "on complete" },
+  updates: { x: 72, y: at("inbox").y, label: "Updates", sub: "submit · retry" },
+  form: { x: 600, y: at("plan").y, label: "Form", sub: "a person answers" },
+  activities: { x: 600, y: at("start").y, label: "Activities", sub: "idle" },
+};
+for (const n of Object.values(NODES)) { n.w = n.w || 100; n.h = 30; }
+
+function arc(from, to) {
+  const a = ANGLES[from];
+  const b = ANGLES[to] > a ? ANGLES[to] : ANGLES[to] + 360;
+  const pts = [];
+  for (let d = a; d < b; d += 3) pts.push(onRing(d));
+  pts.push(onRing(b));
+  return pts;
+}
+const xy = (id) => [NODES[id].x, NODES[id].y];
+const BOTTOM = NODES.inbox.y + 45;  // the return paths run under the ring
+const EDGES = [
+  { id: "inbox-apply", from: "inbox", to: "apply", pts: arc("inbox", "apply") },
+  { id: "apply-resolve", from: "apply", to: "resolve", pts: arc("apply", "resolve") },
+  { id: "resolve-plan", from: "resolve", to: "plan", pts: arc("resolve", "plan") },
+  { id: "plan-start", from: "plan", to: "start", pts: arc("plan", "start") },
+  { id: "start-inbox", from: "start", to: "inbox", pts: arc("start", "inbox") },
+  // The first form's schema comes from whoever starts the workflow; later ones from select next.
+  { id: "begin-load", from: "begin", to: "load", pts: [xy("begin"), xy("load")], label: ["initial schema", 338, 52, "start"] },
+  { id: "load-resolve", from: "load", to: "resolve", pts: [xy("load"), xy("resolve")], label: ["first reconcile", 338, 115, "start"] },
+  { id: "resolve-exit", from: "resolve", to: "exit", pts: [xy("resolve"), xy("exit")], label: ["done", 220, 139] },
+  { id: "exit-load", from: "exit", to: "load", dashed: true, label: ["next form", 118, 108, "start"],
+    pts: [xy("exit"), [NODES.exit.x, NODES.load.y], xy("load")] },
+  { id: "updates-inbox", from: "updates", to: "inbox", pts: [xy("updates"), xy("inbox")], label: ["event", 163, 283] },
+  { id: "start-activities", from: "start", to: "activities", pts: [xy("start"), xy("activities")] },
+  { id: "activities-inbox", from: "activities", to: "inbox", dashed: true, label: ["result", 430, BOTTOM - 4],
+    pts: [xy("activities"), [NODES.activities.x, BOTTOM], [NODES.inbox.x, BOTTOM], xy("inbox")] },
+  // collect:<field> actions: nothing runs them; the form shows the fields and a person answers.
+  { id: "plan-form", from: "plan", to: "form", pts: [xy("plan"), xy("form")], label: ["collect", 527, 194] },
+  { id: "form-updates", from: "form", to: "updates", dashed: true, label: ["person submits answers", 360, BOTTOM + 33],
+    pts: [xy("form"), [660, NODES.form.y], [660, BOTTOM + 20], [NODES.updates.x, BOTTOM + 20], xy("updates")] },
+];
+
+// Trims a center-to-center polyline to the borders of its two boxes.
+function edgePath(e) {
+  const dense = [];
+  for (let i = 0; i < e.pts.length - 1; i++) {
+    const [a, b] = [e.pts[i], e.pts[i + 1]];
+    const k = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2));
+    for (let j = 0; j < k; j++) dense.push([a[0] + ((b[0] - a[0]) * j) / k, a[1] + ((b[1] - a[1]) * j) / k]);
+  }
+  dense.push(e.pts[e.pts.length - 1]);
+  const inside = (p, n) => Math.abs(p[0] - n.x) <= n.w / 2 + 4 && Math.abs(p[1] - n.y) <= n.h / 2 + 4;
+  let i = 0, j = dense.length - 1;
+  while (i < j && inside(dense[i], NODES[e.from])) i++;
+  while (j > i && inside(dense[j], NODES[e.to])) j--;
+  return "M" + dense.slice(i, j + 1).map((p) => `${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" L");
+}
+
+const WHAT = {
+  updates: "An Update passed its validator; _request appends the event to _inbox and waits for the reply.",
+  result: "An activity task finished and posted its result to _inbox; it does not touch state itself.",
+  collect: "Nothing executes a collect_human_input action: it stays pending while the surface (get_state → " +
+           "render_surface) shows its field in the form. It completes once an answer satisfies the field.",
+  answer: "A person filled in the form and pressed Submit; the API sends the changed fields as a submit Update.",
+  inbox: "wait_condition wakes and the loop pops the next event.",
+  apply: "_apply writes the event into source state and bumps the revision.",
+  resolve: "resolve_requirements: which fields apply, which are ready, which are satisfied.",
+  plan: "plan_actions: collect:<field> for missing answers, <activity>:<fingerprint> per input set.",
+  start: "_start_activity starts each new activity as an asyncio task; the loop does not wait for it.",
+  wait: "Back to wait_condition until the next event.",
+};
+
+const loopView = { built: false, nodes: {}, edges: {}, trail: [], hub: null, rev: null, revSub: null, caption: null };
+let loopQueue = [];
+let loopBusy = false;
+let loopSeen = null;   // {runs, revision, closed} as of the last poll
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function buildLoop() {
+  const root = document.getElementById("loop");
+  const arrow = (id) => s("marker", { id, viewBox: "0 0 10 10", refX: 8, refY: 5,
+    markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, s("path", { d: "M0 1 L9 5 L0 9 L2.5 5 z" }));
+  const defs = s("defs", {}, arrow("loop-arrow"), arrow("loop-arrow-lit"),
+    s("pattern", { id: "loop-grid", width: 16, height: 16, patternUnits: "userSpaceOnUse" },
+      s("circle", { class: "grid-dot", cx: 1, cy: 1, r: 0.7 })),
+    s("filter", { id: "loop-shadow", x: "-20%", y: "-30%", width: "140%", height: "170%" },
+      s("feDropShadow", { dx: 0, dy: 1, stdDeviation: 1.2, "flood-color": "#000", "flood-opacity": 0.18 })),
+    s("filter", { id: "loop-glow", x: "-40%", y: "-60%", width: "180%", height: "220%" },
+      s("feDropShadow", { dx: 0, dy: 0, stdDeviation: 2.5, style: "flood-color: var(--accent)", "flood-opacity": 0.6 })));
+  const svg = s("svg", { viewBox: "0 0 670 380", role: "img",
+    "aria-label": "Reconciliation loop: inbox, apply, resolve, plan, start, with the form, activities and schema loading" },
+    defs, s("rect", { width: 670, height: 380, fill: "url(#loop-grid)", opacity: 0.6 }),
+    s("ellipse", { class: "track", cx: RING.cx, cy: RING.cy, rx: RING.rx, ry: RING.ry }));
+  loopView.hub = s("ellipse", { class: "hub", cx: RING.cx, cy: RING.cy, rx: 52, ry: 28 });
+  for (const e of EDGES) {
+    const path = s("path", { class: `edge ${e.dashed ? "dashed" : ""}`, d: edgePath(e), "marker-end": "url(#loop-arrow)" });
+    loopView.edges[e.id] = path;
+    svg.append(path);
+    if (e.label) svg.append(s("text", { class: "elabel", x: e.label[1], y: e.label[2],
+      "text-anchor": e.label[3] || "middle" }, e.label[0]));
+  }
+  const kinds = { updates: "source", form: "source", begin: "source", activities: "work", load: "schema", exit: "exit" };
+  const order = ["inbox", "apply", "resolve", "plan", "start"];
+  for (const [id, n] of Object.entries(NODES)) {
+    const sub = s("text", { class: "sub", x: n.x, y: n.y + 9 }, n.sub);
+    const g = s("g", { class: `node ${n.ring ? "ring" : kinds[id]}` },
+      s("rect", { x: n.x - n.w / 2, y: n.y - n.h / 2, width: n.w, height: n.h, rx: n.ring ? n.h / 2 : 8 }),
+      s("text", { x: n.x, y: n.y - 1 }, n.label), sub);
+    if (n.ring) {
+      // Step number, in loop order.
+      const [bx, by] = [n.x - n.w / 2 + 3, n.y - n.h / 2 + 2];
+      g.append(s("g", { class: "badge" }, s("circle", { cx: bx, cy: by, r: 6 }),
+        s("text", { x: bx, y: by + 2.4, "text-anchor": "middle" }, order.indexOf(id) + 1)));
+    }
+    loopView.nodes[id] = { g, sub };
+    svg.append(g);
+    g.classList.add("clickable");
+    asButton(g, `View the code behind ${n.label}`, () => openSource(id));
+  }
+  // The loaded schema, next to load_schema: click to expand its details below.
+  const { x, y, w } = NODES.load;
+  const left = x + w / 2 + 12;
+  const doc = `M${left + 7} ${y - 6} h6 l3 3 v9 h-9 z M${left + 13} ${y - 6} v3 h3 M${left + 9} ${y} h5 M${left + 9} ${y + 2.5} h5`;
+  loopView.chip = {
+    rect: s("rect", { x: left, y: y - 11, height: 22, rx: 11, width: 120 }),
+    text: s("text", { x: left + 21, y: y + 3 }, ""),
+  };
+  loopView.chip.g = s("g", { class: "schema-chip" }, loopView.chip.rect, s("path", { class: "doc", d: doc }), loopView.chip.text);
+  asButton(loopView.chip.g, "Show the loaded schema", toggleLoopSchema);
+  svg.append(s("line", { class: "edge dashed", x1: x + w / 2, y1: y, x2: left, y2: y }), loopView.chip.g);
+  loopView.rev = s("text", { class: "rev", x: RING.cx, y: RING.cy + 1 }, "rev 0");
+  loopView.revSub = s("text", { class: "rev-sub", x: RING.cx, y: RING.cy + 13 }, "");
+  // The centre stands for the loop itself.
+  const centre = s("g", { class: "hub-button" }, loopView.hub, loopView.rev, loopView.revSub);
+  asButton(centre, "View the code of the reconciliation loop", () => openSource("loop"));
+  svg.insertBefore(centre, svg.querySelector(".edge"));
+  // The token and its fading trail.
+  loopView.trail = [1, 0.45, 0.2].map((opacity, i) =>
+    s("circle", { class: `token ${i ? "" : "head"}`, r: 3.5 - i * 0.9, opacity, visibility: "hidden" }));
+  svg.append(...[...loopView.trail].reverse());
+  loopView.caption = h("div", { class: "loop-caption" });
+  loopView.panel = h("div", { class: "loop-schema schema-view", hidden: true });
+  const hint = h("div", { class: "loop-hint" }, "Click a step, or the centre of the loop, to see the code behind it.");
+  root.replaceChildren(h("h2", {}, "Reconciliation loop"), svg, hint, loopView.caption, loopView.panel);
+  loopView.built = true;
+}
+
+// The hub pulses whenever the revision it shows changes.
+function setRev(revision) {
+  const text = `rev ${revision}`;
+  if (loopView.rev.textContent === text) return;
+  loopView.rev.textContent = text;
+  loopView.hub.classList.remove("pulse");
+  loopView.hub.getBBox();  // restart the animation
+  loopView.hub.classList.add("pulse");
+}
+
+function setCaption(head, what) {
+  loopView.caption.replaceChildren(h("div", {}, head), h("div", { class: "what" }, what));
+}
+
+function setHot(id) {
+  for (const [k, n] of Object.entries(loopView.nodes)) n.g.classList.toggle("hot", k === id);
+}
+
+function travel(id, ms) {
+  const path = loopView.edges[id];
+  path.classList.add("lit");
+  if (reduceMotion) return sleep(ms / 2).then(() => path.classList.remove("lit"));
+  const len = path.getTotalLength();
+  path.setAttribute("marker-end", "url(#loop-arrow-lit)");
+  for (const dot of loopView.trail) dot.setAttribute("visibility", "visible");
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    const frame = (now) => {
+      const k = Math.min(1, (now - t0) / ms);
+      loopView.trail.forEach((dot, i) => {
+        const p = path.getPointAtLength(len * Math.max(0, k - i * 0.07));
+        dot.setAttribute("cx", p.x); dot.setAttribute("cy", p.y);
+      });
+      if (k < 1) return requestAnimationFrame(frame);
+      path.classList.remove("lit");
+      path.setAttribute("marker-end", "url(#loop-arrow)");
+      for (const dot of loopView.trail) dot.setAttribute("visibility", "hidden");
+      resolve();
+    };
+    requestAnimationFrame(frame);
+  });
+}
+
+// A dot flies from the button that sent an Update into the loop's Updates box.
+function flyToUpdates(from) {
+  const target = loopView.built && loopView.nodes.updates.g;
+  if (!from || !target || reduceMotion) return;
+  const a = from.getBoundingClientRect(), b = target.getBoundingClientRect();
+  const onScreen = (r) => r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
+  if (!onScreen(a) || !onScreen(b)) return;
+  const [x0, y0] = [a.left + a.width / 2, a.top + a.height / 2];
+  const [x1, y1] = [b.left + b.width / 2, b.top + b.height / 2];
+  const lift = Math.max(12, Math.min(y0, y1) - 80);  // arc up and over, rather than a straight line
+  const flyer = h("div", { class: "flyer" });
+  document.body.append(flyer);
+  const move = flyer.animate([
+    { transform: `translate(${x0}px, ${y0}px) scale(1)` },
+    { transform: `translate(${(x0 + x1) / 2}px, ${lift}px) scale(1.3)`, offset: 0.5 },
+    { transform: `translate(${x1}px, ${y1}px) scale(.6)` },
+  ], { duration: 650, easing: "ease-in-out" });
+  move.onfinish = () => {
+    flyer.remove();
+    target.classList.add("landed");
+    setTimeout(() => target.classList.remove("landed"), 600);
+  };
+}
+
+// load_schema gets a slow, unmissable highlight: a new schema decides everything after it.
+async function showLoading(schema) {
+  const [id, version] = schema;
+  const node = loopView.nodes.load;
+  setLoadedSchema(schema);
+  if (!loopView.panel.hidden) showInlineSchema(id, version);
+  node.g.classList.add("loading");
+  loopView.chip.g.classList.add("fresh");
+  await sleep(2400);
+  node.g.classList.remove("loading");
+  loopView.chip.g.classList.remove("fresh");
+}
+
+function setLoadedSchema([id, version, title]) {
+  loopView.loadSchema = [id, version, title];
+  loopView.nodes.load.sub.textContent = `${id} v${version}`;
+  setChip();
+}
+
+function setChip() {
+  const [id, version, title] = loopView.loadSchema;
+  const { rect, text, g } = loopView.chip;
+  text.textContent = `${title} ${loopView.panel.hidden ? "▸" : "▾"}`;
+  const width = text.getComputedTextLength() || text.textContent.length * 4.6;
+  rect.setAttribute("width", width + 30);
+  g.setAttribute("aria-expanded", String(!loopView.panel.hidden));
+  g.setAttribute("aria-label", `${loopView.panel.hidden ? "Show" : "Hide"} schema ${id} v${version}`);
+}
+
+function toggleLoopSchema() {
+  if (!loopView.loadSchema) return;
+  if (loopView.panel.hidden) showInlineSchema(...loopView.loadSchema);
+  else { loopView.panel.hidden = true; setChip(); }
+}
+
+// Keyboard and pointer activation for an SVG element acting as a button.
+function asButton(el, label, fn) {
+  el.setAttribute("tabindex", "0");
+  el.setAttribute("role", "button");
+  el.setAttribute("aria-label", label);
+  el.append(s("title", {}, label));
+  el.addEventListener("click", fn);
+  el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } });
+}
+
+// Briefly outlines the form fields a collect:<field> action is waiting for.
+function pointAtFields(fields) {
+  for (const f of fields) {
+    const el = document.getElementById(`f-${f}`);
+    const field = el && el.closest(".field");
+    if (!field) continue;
+    field.classList.remove("asked");
+    void field.offsetWidth;  // restart the animation
+    field.classList.add("asked");
+  }
+}
+
+async function pumpLoop() {
+  if (loopBusy) return;
+  loopBusy = true;
+  while (loopQueue.length) {
+    const step = loopQueue.shift();
+    // About 10 steps make a pass; speed up when several passes are waiting.
+    const pace = loopQueue.length > 30 ? 0.25 : loopQueue.length > 12 ? 0.5 : 1;
+    if (step.head) setCaption(step.head, step.what || "");
+    if (step.rev !== undefined) setRev(step.rev);
+    if (step.edge) await travel(step.edge, 340 * pace);
+    else if (step.loading) { setHot(step.node); await showLoading(step.loading); }
+    else {
+      setHot(step.node);
+      if (step.ask) pointAtFields(step.ask);
+      await sleep((step.ask ? 900 : 260) * pace);
+    }
+  }
+  loopBusy = false;
+}
+
+// The steps of one pass around the loop for a decision the workflow recorded.
+function passFor(d, st) {
+  const head = h("span", {}, h("code", {}, `rev ${d.revision}`), " ", d.trigger);
+  const step = (node, what) => ({ node, head, what, rev: d.revision });
+  const steps = [];
+  if (d.trigger === "workflow started") {
+    const title = st.schema ? st.schema.title : st.schema_id;
+    if (!st.phases.length) {
+      // The first form: its schema is the one the workflow was started with.
+      steps.push({
+        node: "begin", rev: d.revision,
+        head: h("span", {}, "New application with ", h("code", {}, `${st.schema_id} v${st.schema_version}`)),
+        what: "POST /applications starts the workflow with WorkflowInput(schema_id, schema_version): only the " +
+              "name of the first form. The workflow loads the schema itself:",
+      }, { edge: "begin-load" });
+    }
+    steps.push({
+      node: "load", rev: d.revision, loading: [st.schema_id, st.schema_version, title],
+      head: h("span", {}, "Loading schema ", schemaLink(st.schema_id, st.schema_version, title)),
+      what: `load_schema(${st.schema_id} v${st.schema_version}) runs as an activity and its result is pinned in ` +
+            "history, so this form keeps this version. Then the first _reconcile:",
+    }, { edge: "load-resolve" });
+  } else {
+    if (/^submission/.test(d.trigger)) steps.push(step("form", WHAT.answer), { edge: "form-updates" });
+    if (/^(submission|retry)/.test(d.trigger)) steps.push(step("updates", WHAT.updates), { edge: "updates-inbox" });
+    else steps.push(step("activities", WHAT.result), { edge: "activities-inbox" });
+    steps.push(step("inbox", WHAT.inbox), { edge: "inbox-apply" }, step("apply", WHAT.apply), { edge: "apply-resolve" });
+  }
+  steps.push(step("resolve", WHAT.resolve), { edge: "resolve-plan" }, step("plan", WHAT.plan));
+  const asked = d.new_actions.filter((a) => a.startsWith("collect:"));
+  if (asked.length) {
+    const fields = asked.map((a) => a.slice("collect:".length));
+    steps.push({ edge: "plan-form" }, { ...step("form", `${WHAT.collect} Asking for: ${fields.join(", ")}.`), ask: fields });
+  }
+  steps.push({ edge: "plan-start" });
+  const started = d.new_actions.filter((a) => !a.startsWith("collect:"));
+  if (started.length) {
+    steps.push(step("start", `${WHAT.start} New: ${started.join(", ")}`), { edge: "start-activities" },
+               step("activities", WHAT.start), { edge: "start-inbox" });
+  } else {
+    steps.push(step("start", "Nothing new to start."), { edge: "start-inbox" });
+  }
+  steps.push(step("inbox", d.reason ? `${WHAT.wait} ${d.reason}` : WHAT.wait));
+  return steps;
+}
+
+function updateLoop(st) {
+  if (!loopView.built) buildLoop();
+  const runs = st.phases.length;
+  const latest = st.decisions.length ? st.decisions[st.decisions.length - 1].revision : -1;
+  let fresh;
+  if (!loopSeen) {
+    fresh = st.decisions.slice(-1);  // first view: replay only the latest pass
+  } else if (runs > loopSeen.runs) {
+    // The previous form completed and the workflow continued as new into this one.
+    const prev = st.phases[runs - 1];
+    const head = h("span", {}, `${humanize(prev.schema_id)}: `, chip(prev.outcome || "none"));
+    loopQueue.push({ node: "resolve", head, what: "Every applicable requirement is satisfied." },
+      { edge: "resolve-exit" },
+      { node: "exit", head, what: `select_next matched ${st.schema_id}; continue_as_new carries the values over as context.` },
+      { edge: "exit-load" });
+    fresh = st.decisions;
+  } else {
+    fresh = st.decisions.filter((d) => d.revision > loopSeen.revision);
+  }
+  for (const d of fresh.slice(-4)) loopQueue.push(...passFor(d, st));
+  const closed = ["completed", "cancelled", "failed"].includes(st.status);
+  if (st.status === "completed" && !(loopSeen && loopSeen.closed)) {
+    const head = h("span", {}, "Outcome ", chip(st.outcome || "none"));
+    loopQueue.push({ edge: "resolve-exit" },
+      { node: "exit", head, what: "No next form matches, so the workflow returns its outcome." });
+  }
+  loopSeen = { runs, revision: latest, closed };
+
+  // Static labels reflect the latest state; the queue replays how it got there.
+  // load_schema changes name only when its animation step plays.
+  // Before load_schema has returned the state has no schema yet: leave the labels until it has.
+  if (st.schema_id) {
+    const first = st.phases.length ? st.phases[0] : st;
+    loopView.nodes.begin.sub.textContent = `${first.schema_id} v${first.schema_version}`;
+  }
+  if (!loopView.loadSchema && st.schema_id) {
+    setLoadedSchema([st.schema_id, st.schema_version, st.schema ? st.schema.title : humanize(st.schema_id)]);
+  }
+  const running = st.actions.filter((a) => a.type === "execute_activity" && a.status === "running").length;
+  loopView.nodes.activities.sub.textContent = running ? `${running} running` : "idle";
+  loopView.nodes.activities.g.classList.toggle("busy", running > 0);
+  loopView.nodes.exit.sub.textContent = st.status === "completed" ? `outcome: ${st.outcome}` : "on complete";
+  loopView.nodes.exit.g.classList.toggle("done", st.status === "completed");
+  loopView.revSub.textContent = humanize(st.status);
+  if (!loopQueue.length && !loopBusy) setRev(st.revision);
+  pumpLoop();
+}
+
+// ---- Schema viewer ---------------------------------------------------------
+// Shows a schema file the way the engine reads it: fields and when they apply,
+// how the outcome is decided, and which form comes next.
+
+const schemaCache = {};
+
+function schemaLink(id, version, label) {
+  return h("button", { class: "link", type: "button", title: `View schema ${id} v${version}`,
+    onclick: () => openSchema(id, version) }, label || h("code", {}, `${id} v${version}`));
+}
+
+function describeRule(r) {
+  if (!r) return "always";
+  if (r.and) return r.and.map((x) => `(${describeRule(x)})`).join(" and ");
+  if (r.or) return r.or.map((x) => `(${describeRule(x)})`).join(" or ");
+  if ("exists" in r) return `${r.field} ${r.exists ? "is present" : "is absent"}`;
+  if ("equals" in r) return `${r.field} == ${JSON.stringify(r.equals)}`;
+  return `${r.field} != ${JSON.stringify(r.notEquals)}`;
+}
+
+function constraintsOf(f) {
+  const bound = (b) => (b && typeof b === "object" ? b.from : b);
+  const parts = [];
+  if (f.min !== undefined) parts.push(`≥ ${bound(f.min)}`);
+  if (f.max !== undefined) parts.push(`≤ ${bound(f.max)}`);
+  if (f.minLength !== undefined) parts.push(`length ≥ ${f.minLength}`);
+  if (f.maxLength !== undefined) parts.push(`length ≤ ${f.maxLength}`);
+  if (f.enum) parts.push(f.enum.join(" | "));
+  if (f.pattern) parts.push(`/${f.pattern}/`);
+  return parts.join(", ");
+}
+
+// In a dialog, from the links in the engine state.
+function openSchema(id, version) {
+  const dialog = document.getElementById("schema-dialog");
+  if (!dialog.open) dialog.showModal();
+  return showSchemaIn(dialog.querySelector(".inner"), id, version,
+    { open: openSchema, close: () => dialog.close(), closeLabel: "Close", titleId: "schema-title" });
+}
+
+// Expanded under the loop, from load_schema and the schema chip next to it.
+function showInlineSchema(id, version) {
+  loopView.panel.hidden = false;
+  setChip();
+  return showSchemaIn(loopView.panel, id, version, {
+    open: showInlineSchema, closeLabel: "Hide",
+    close: () => { loopView.panel.hidden = true; setChip(); },
+  });
+}
+
+async function showSchemaIn(inner, id, version, opts) {
+  const key = `${id}/${version}`;
+  if (!schemaCache[key]) {
+    inner.replaceChildren(h("p", { class: "muted" }, `Loading ${id} v${version}...`));
+    const res = await api(`/schemas/${encodeURIComponent(id)}/${encodeURIComponent(version)}`);
+    if (res.status !== 200) {
+      inner.replaceChildren(h("div", { class: "banner bad" }, `Could not load schema ${id} v${version}.`));
+      return;
+    }
+    schemaCache[key] = res.body;
+  }
+  renderSchema(inner, schemaCache[key], opts);
+}
+
+function renderSchema(inner, raw, opts) {
+  const { open, close, closeLabel, titleId } = opts;
+  const view = inner.dataset.view || "summary";
+  const show = (v) => { inner.dataset.view = v; renderSchema(inner, raw, opts); };
+  const link = (id, version) => h("button", { class: "link", type: "button", onclick: () => open(id, version) },
+    h("code", {}, `${id} v${version}`));
+  // Identifiers may wrap after an underscore, never mid-word.
+  const ident = (name) => h("code", {}, name.split("_").flatMap((part, i) => (i ? ["_", h("wbr"), part] : [part])));
+  // The forms on this application's path so far, to switch between them.
+  const journey = state ? [...state.phases, { schema_id: state.schema_id, schema_version: state.schema_version }] : [];
+  const nav = journey.length > 1 ? h("nav", { "aria-label": "Forms in this application" }, journey.map((p) =>
+    h("button", { type: "button", "aria-current": p.schema_id === raw.id ? "true" : null,
+      onclick: () => open(p.schema_id, p.schema_version) }, humanize(p.schema_id)))) : null;
+
+  const fields = Object.entries(raw.fields).map(([fid, f]) => {
+    const by = f.collection.strategy === "activity" ? h("span", {}, "activity ", ident(f.collection.activity)) : "person";
+    const ready = [f.dependsOn && f.dependsOn.length ? `after ${f.dependsOn.join(", ")}` : null,
+                   f.readyWhen ? `when ${describeRule(f.readyWhen)}` : null].filter(Boolean).join("; ");
+    return h("tr", {},
+      h("td", {}, ident(fid), h("div", { class: "muted" }, f.label)),
+      h("td", {}, f.type, constraintsOf(f) ? h("div", { class: "muted" }, constraintsOf(f)) : null),
+      h("td", {}, by),
+      h("td", { class: "reason" }, f.required ? "always" : describeRule(f.requiredWhen)),
+      h("td", { class: "reason" }, ready || "-"));
+  });
+
+  const head = h("div", { class: "head" },
+    h("h2", { id: titleId || null }, raw.title, " ", h("code", { class: "muted" }, `${raw.id} v${raw.version}`)),
+    h("div", { class: "tools" },
+      h("div", { class: "seg", role: "group", "aria-label": "Schema view" },
+        [["summary", "Summary"], ["raw", "Raw JSON"]].map(([v, label]) =>
+          h("button", { type: "button", "aria-pressed": String(view === v), onclick: () => show(v) }, label))),
+      h("button", { type: "button", onclick: close }, closeLabel)));
+  if (view === "raw") {
+    inner.replaceChildren(...[head, nav, codeBlock(jsonRuns(raw), 1)].filter((c) => c));
+    return;
+  }
+  inner.replaceChildren(...[
+    head,
+    nav,
+    raw.context && raw.context.length
+      ? h("p", { class: "muted" }, "Reads values from earlier forms: ", raw.context.map((c) => `${c}.*`).join(", "))
+      : h("p", { class: "muted" }, "The first form: no values from earlier forms."),
+    h("h3", {}, "Fields"),
+    h("div", { class: "table-wrap" }, h("table", {},
+      h("tr", {}, h("th", {}, "field"), h("th", {}, "type"), h("th", {}, "collected by"),
+        h("th", {}, "required when"), h("th", {}, "ready")), fields)),
+    h("h3", {}, "Outcome (first match wins)"),
+    h("ul", {}, raw.outcome.map((o) => h("li", {}, o.when ? describeRule(o.when) : "otherwise", " → ", chip(o.result)))),
+    h("h3", {}, "Next form (first match wins)"),
+    raw.next && raw.next.length
+      ? h("ul", {}, raw.next.map((n) => h("li", {}, describeRule(n.when), " → ",
+          link(n.schema, n.version), h("span", { class: "muted" }, `, values carried over as ${n.as}.*`))))
+      : h("p", { class: "muted" }, "None: the application ends after this form."),
+  ].filter((c) => c));  // replaceChildren would print a null as text
+}
+
+// ---- Colour-coded code ------------------------------------------------------
+
+// [kind, text] runs as a <pre> with line numbers starting at `first`.
+function codeBlock(runs, first) {
+  const lines = [[]];
+  for (const [kind, text] of runs) {
+    text.split("\n").forEach((piece, i) => {
+      if (i) lines.push([]);
+      if (piece) lines[lines.length - 1].push(kind ? h("span", { class: `t-${kind}` }, piece) : piece);
+    });
+  }
+  if (!lines[lines.length - 1].length) lines.pop();
+  return h("pre", { class: "code" }, lines.flatMap((line, i) => [h("span", { class: "ln" }, first + i), ...line, "\n"]));
+}
+
+// Pretty-printed JSON as runs: keys, strings, numbers and literals.
+function jsonRuns(value) {
+  const text = JSON.stringify(value, null, 2);
+  const token = /("(?:\\.|[^"\\])*")(\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
+  const runs = [];
+  let done = 0;
+  for (const m of text.matchAll(token)) {
+    if (m.index > done) runs.push(["", text.slice(done, m.index)]);
+    if (m[1] !== undefined) {
+      runs.push([m[2] ? "key" : "str", m[1]]);
+      if (m[2]) runs.push(["", m[2]]);
+    } else {
+      runs.push([/\d/.test(m[0]) ? "num" : "kw", m[0]]);
+    }
+    done = m.index + m[0].length;
+  }
+  if (done < text.length) runs.push(["", text.slice(done)]);
+  return runs;
+}
+
+// ---- Source viewer ----------------------------------------------------------
+// Every step of the loop opens the functions behind it, read from the running code.
+
+const sourceCache = {};
+const STEP_WHAT = {
+  updates: WHAT.updates,
+  loop: "The reconciliation loop: _run_form applies one event per pass and reconciles, until the form completes or goes idle. run() wraps it: load the schema, run the form, then continue as new or return.",
+  inbox: "_run_form blocks on wait_condition only when the inbox is empty, then pops one event. _apply turns it into " +
+         "the trigger: a description of what the event changed, or None when nothing changed (nothing to reconcile). " +
+         "The event types are below.",
+  apply: WHAT.apply,
+  resolve: "_reconcile re-resolves requirements, plans actions and starts activities; resolve_requirements decides what applies.",
+  plan: WHAT.plan,
+  start: WHAT.start,
+  begin: "The first form's schema is chosen by whoever starts the workflow: the API's start route names it in " +
+         "WorkflowInput. Follow-up forms are chosen by select_next instead.",
+  form: "collect_human_input actions are bookkeeping only. plan_actions opens collect:<field> for each missing human " +
+        "field and closes it once the field is satisfied or stops applying; render_surface turns the missing fields into the form.",
+  activities: "Activities run on the worker, outside the workflow; Temporal retries them. Two of the mock checks:",
+  exit: "When every applicable requirement is satisfied, select_next picks the follow-up form and _next_input carries the values over.",
+  load: "The workflow loads its schema once, through an activity, and checks the carried-over context fits it. The activity reads and validates the file.",
+};
+
+async function openSource(step) {
+  const dialog = document.getElementById("code-dialog");
+  const inner = dialog.querySelector(".inner");
+  if (!dialog.open) dialog.showModal();
+  if (!sourceCache[step]) {
+    inner.replaceChildren(h("p", { class: "muted" }, "Loading source..."));
+    const res = await api(`/source/${encodeURIComponent(step)}`);
+    if (res.status !== 200) {
+      inner.replaceChildren(h("div", { class: "banner bad" },
+        "Could not load the source. If the API was started before this page changed, restart it."));
+      return;
+    }
+    sourceCache[step] = res.body;
+  }
+  inner.replaceChildren(
+    h("div", { class: "head" },
+      h("h2", { id: "code-title" }, step === "loop" ? "reconciliation loop" : NODES[step].label, " ",
+        h("span", { class: "muted" }, "source")),
+      h("button", { type: "button", onclick: () => dialog.close() }, "Close")),
+    h("p", { class: "muted" }, STEP_WHAT[step]),
+    ...sourceCache[step].map((part) => h("div", { class: "part" },
+      h("div", { class: "part-title" }, h("code", {}, part.name), h("span", { class: "muted" }, `${part.file}:${part.line}`)),
+      codeBlock(part.runs, part.line))));
+}
+
+for (const dialog of document.querySelectorAll("dialog")) {
+  dialog.addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) e.currentTarget.close();  // a click on the backdrop
+  });
+}
+
+async function retryAction(actionId) {
+  const res = await api(`/applications/${workflowId}/actions/${encodeURIComponent(actionId)}/retry`, { method: "POST" });
+  notice = res.status === 200 ? { kind: "ok", text: `Retrying ${actionId}.` } : { kind: "bad", text: "Retry rejected." };
+  await refresh();
+}
+
+// ---- Start ---------------------------------------------------------------
+
+for (const btn of document.querySelectorAll("button.start")) {
+  btn.addEventListener("click", async () => {
+    const res = await api("/applications", {
+      method: "POST", body: JSON.stringify({ schemaVersion: btn.dataset.version }),
+    });
+    location.search = `?id=${encodeURIComponent(res.body.workflowId)}`;
+  });
+}
+
+// Each scenario run gets a fresh application; the scenario rides along in the URL.
+async function startScenario(id, autoplay = false) {
+  const res = await api("/applications", { method: "POST", body: JSON.stringify({}) });
+  location.search = `?id=${encodeURIComponent(res.body.workflowId)}&scenario=${encodeURIComponent(id)}` +
+    (autoplay ? "&autoplay=1" : "");
+}
+
+document.getElementById("scenario-start").addEventListener("click", () => {
+  const select = document.getElementById("scenario-select");
+  if (select.value) return startScenario(select.value);
+  // Nothing chosen yet: open the list rather than doing nothing.
+  select.focus();
+  try { select.showPicker(); } catch {}
+});
+
+async function loadScenarios() {
+  const res = await api("/scenarios.json");
+  scenarios = res.status === 200 ? res.body.scenarios : [];
+  const select = document.getElementById("scenario-select");
+  for (const sc of scenarios) select.append(h("option", { value: sc.id, title: sc.description }, sc.title));
+  const wanted = params.get("scenario");
+  scenario = scenarios.find((sc) => sc.id === wanted) || null;
+  if (scenario) {
+    select.value = scenario.id;
+    const saved = loadProgress();
+    progress = saved && saved.id === scenario.id
+      ? { index: saved.index, submitted: saved.submitted, paused: saved.paused }
+      : { index: 0, submitted: [], paused: false };
+  }
+}
+
+loadScenarios().then(async () => {
+  if (!workflowId) return;
+  await refresh();
+  // A link with &autoplay=1 replays the scenario from the start, e.g. to share a repro.
+  if (scenario && params.get("autoplay") === "1" && progress.index === 0 && !progress.submitted.length) play();
+});
+
+if (workflowId) {
+  api("/config.json").then(({ body }) => {
+    const ui = body.temporalUiUrl || "http://localhost:8233";
+    const link = h("a", { href: `${ui}/namespaces/default/workflows/${encodeURIComponent(workflowId)}`, target: "_blank" }, workflowId);
+    document.getElementById("wf-id").replaceChildren("Workflow ", link);
+  });
+}
+</script>
+</body>
+</html>

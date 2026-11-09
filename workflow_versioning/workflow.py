@@ -22,5 +22,27 @@ class OrderWorkflow:
             order,
             start_to_close_timeout=timedelta(seconds=10),
         )
+        
+        await workflow.execute_activity(
+            charge_order,
+            order,
+            start_to_close_timeout=timedelta(seconds=10),
+        )
+        
+        # charge_order_version = workflow.patched("skip_charge_order")
+        # if charge_order_version:
+        #     await workflow.execute_activity(
+        #         charge_order,
+        #         order,
+        #         start_to_close_timeout=timedelta(seconds=10),
+        #     )
+        
+        await workflow.sleep(timedelta(seconds=20))  # Sleep for time to stop worker
+        
+        await workflow.execute_activity(
+            charge_order,
+            order,
+            start_to_close_timeout=timedelta(seconds=10),
+        )
 
         return
